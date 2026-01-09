@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Suivi CC – CC + BPM</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2563eb">
+  <style>
+    :root{
+      --bg:#f3f4f6; --card:#fff; --text:#111827; --muted:#6b7280;
+      --border:#e5e7eb; --blue:#2563eb; --blue2:#1d4ed8;
+      --redbg:#fee2e2; --red:#b91c1c;
+      --amberbg:#fef3c7; --amber:#92400e;
+      --greenbg:#dcfce7; --green:#166534;
+      --indigobg:#eef2ff; --indigo:#4338ca;
+      --purple:#7c3aed;
+    }
+    *{ box-sizing:border-box; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    body{ margin:0; background:var(--bg); color:var(--text); }
+    .app{ max-width:980px; margin:0 auto; padding:14px; }
+    h1{ margin:0 0 4px; font-size:1.55rem; }
+    .sub{ margin:0 0 12px; color:var(--muted); font-size:.95rem; }
+    .card{
+      background:var(--card); border-radius:14px; padding:14px;
+      box-shadow:0 8px 20px rgba(15,23,42,.08); margin-top:12px;
+    }
+    .row{ display:flex; flex-wrap:wrap; gap:12px; }
+    .col{ flex:1 1 220px; }
+    label{ display:block; font-size:.85rem; color:#374151; margin-bottom:4px; }
+    input, select, textarea{
+      width:100%; padding:10px 12px; border-radius:12px;
+      border:1px solid #d1d5db; font-size:1rem;
+    }
+    textarea{ min-height:64px; resize:vertical; }
+    .actions{ display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-top:12px; }
+    button{
+      border:none; border-radius:999px; padding:11px 16px; cursor:pointer; font-size:1rem;
+    }
+    .primary{ background:var(--blue); color:#fff; }
+    .primary:hover{ background:var(--blue2); }
+    .ghost{ background:#e5e7eb; color:var(--text); }
+    .ghost:hover{ background:#d1d5db; }
+    .danger{ background:#ef4444; color:#fff; padding:7px 11px; font-size:.85rem; }
+    .danger:hover{ background:#dc2626; }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .chip{ font-size:.85rem; padding:5px 10px; border-radius:999px; background:#e5e7eb; color:#374151; }
+    .chip.blue{ background:#e0f2fe; color:#075985; }
+    .grid{
+      display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap:10px; margin-top:10px;
+    }
+    .stat{
+      background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px;
+    }
+    .stat .k{ font-size:.78rem; color:var(--muted); }
+    .stat .v{ margin-top:2px; font-size:1.12rem; font-weight:650; }
+    .badge{ display:inline-block; padding:3px 9px; border-radius:999px; font-size:.78rem; }
+    .b-type{ background:var(--indigobg); color:var(--indigo); }
+    .b-red{ background:var(--redbg); color:var(--red); }
+    .b-amber{ background:var(--amberbg); color:var(--amber); }
+    .b-green{ background:var(--greenbg); color:var(--green); }
+    .muted{ color:var(--muted); }
+    table{ width:100%; border-collapse:collapse; font-size:.88rem; margin-top:8px; }
+    th,td{ border-bottom:1px solid var(--border); padding:9px 7px; vertical-align:top; }
+    th{ text-align:left; font-size:.78rem; color:var(--muted); font-weight:650; }
+    .empty{ color:var(--muted); }
+    .small{ font-size:.9rem; color:var(--muted); margin:6px 0 0; }
+    /* Graphes: 1 par ligne, plein largeur (mobile-first) */
+    .charts{ display:flex; flex-direction:column; gap:12px; margin-top:10px; }
+    .chart-card{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; }
+    canvas{ width:100%; height:360px; border:1px solid var(--border); border-radius:12px; background:#fff; }
+    @media (max-width: 650px){
+      .actions{ justify-content:stretch; }
+      button{ width:100%; }
+      canvas{ height:420px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <h1>Suivi CC (Cohérence Cardiaque)</h1>
+  <p class="sub">Saisie CC + BPM • seuils & zones recalculés automatiquement • focus sur tes nouvelles progressions.</p>
+
+  <div class="card">
+    <p class="small">Tu peux saisir 1,6 (virgule) ou 1.6 (point).</p>
+
+    <form id="form">
+      <div class="row">
+        <div class="col">
+          <label for="dt">Date & heure</label>
+          <input id="dt" type="datetime-local" required>
+        </div>
+        <div class="col">
+          <label for="ctx">Contexte</label>
+          <select id="ctx">
+            <option value="matin_repos">Matin – repos</option>
+            <option value="aprem_actif">Après-midi – actif</option>
+            <option value="post_exercice">Juste après exercice</option>
+            <option value="soir_repos">Soir – repos</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="cc">CC</label>
+          <input id="cc" type="text" inputmode="decimal" placeholder="">
+          <div id="ccHint" class="small">Moyenne (contexte): —</div>
+        </div>
+        <div class="col">
+          <label for="bpm">BPM</label>
+          <input id="bpm" type="number" step="1" min="0" placeholder="">
+          <div id="bpmHint" class="small">BPM médian (contexte): —</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div class="col">
+          <label for="note">Note (optionnel)</label>
+          <textarea id="note" placeholder="Ex : stress, mauvaise nuit, après repas..."></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="ghost" id="fullscreenBtn">Plein écran</button>
+        <button type="button" class="ghost" id="landscapeBtn">Mode paysage</button>
+        <button type="button" class="ghost" id="exportBtn">Exporter JSON</button>
+        <button type="button" class="ghost" id="importBtn">Importer JSON</button>
+        <button type="button" class="ghost" id="wipeBtn">Effacer tout (local)</button>
+        <button type="submit" class="primary">Enregistrer</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0;">Résumé & stats (auto)</h2>
+    <div id="summary" class="empty" style="margin-top:8px;">Importe ta base (JSON) ou ajoute une première mesure.</div>
+    <div id="stats" style="margin-top:10px;"></div>
+    <div class="chips">
+      <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
+      <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
+      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs médiane du contexte)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0;">Graphes (plein largeur)</h2>
+    <p class="small">1) CC repos matin & soir • 2) Score bas (0/1/2) matin & soir • 3) Δ post-ex vs aprem actif.</p>
+
+    <div class="charts">
+      <div class="chart-card">
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">CC repos (matin & soir)</div>
+        <canvas id="c1"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Score bas (matin & soir)</div>
+        <canvas id="c2"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ post-exercice (vs aprem actif)</div>
+        <canvas id="c3"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0;">Historique</h2>
+    <div id="history" class="empty" style="margin-top:8px;">Rien pour l’instant.</div>
+  </div>
+</div>
+
+<script>
+  // =======================
+  // Baseline (historique) intégré – utilisé UNIQUEMENT pour les calculs
+  // =======================
+  const BASELINE_DATA = [{"id": "imp_1767956895743_0", "dt": "2025-10-20T08:00", "ctx": "matin_repos", "cc": 0.9, "bpm": 66, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_1", "dt": "2025-10-20T15:00", "ctx": "aprem_actif", "cc": 1.3, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_2", "dt": "2025-10-20T22:00", "ctx": "soir_repos", "cc": 1.5, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_3", "dt": "2025-10-21T08:00", "ctx": "matin_repos", "cc": 1.4, "bpm": 62, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_4", "dt": "2025-10-21T15:00", "ctx": "aprem_actif", "cc": 3.4, "bpm": 72, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_5", "dt": "2025-10-21T22:00", "ctx": "soir_repos", "cc": 1.4, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_6", "dt": "2025-10-22T08:00", "ctx": "matin_repos", "cc": 1.4, "bpm": 66, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_7", "dt": "2025-10-22T15:00", "ctx": "aprem_actif", "cc": 1.5, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_8", "dt": "2025-10-22T22:00", "ctx": "soir_repos", "cc": 0.71, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_9", "dt": "2025-10-23T08:00", "ctx": "matin_repos", "cc": 1.3, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_10", "dt": "2025-10-23T15:00", "ctx": "aprem_actif", "cc": 1.0, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_11", "dt": "2025-10-23T22:00", "ctx": "soir_repos", "cc": 0.7, "bpm": null, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_12", "dt": "2025-10-24T08:00", "ctx": "matin_repos", "cc": 1.8, "bpm": 84, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_13", "dt": "2025-10-24T15:00", "ctx": "aprem_actif", "cc": 3.0, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_14", "dt": "2025-10-24T16:30", "ctx": "post_exercice", "cc": 4.2, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_15", "dt": "2025-10-24T22:00", "ctx": "soir_repos", "cc": 1.1, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_16", "dt": "2025-10-25T08:00", "ctx": "matin_repos", "cc": 1.3, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_17", "dt": "2025-10-25T15:00", "ctx": "aprem_actif", "cc": 2.7, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_18", "dt": "2025-10-25T22:00", "ctx": "soir_repos", "cc": 1.5, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_19", "dt": "2025-10-26T08:00", "ctx": "matin_repos", "cc": 1.4, "bpm": 64, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_20", "dt": "2025-10-26T22:00", "ctx": "soir_repos", "cc": 1.2, "bpm": 70, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_21", "dt": "2025-10-27T08:00", "ctx": "matin_repos", "cc": 1.0, "bpm": 60, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_22", "dt": "2025-10-27T15:00", "ctx": "aprem_actif", "cc": 3.3, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_23", "dt": "2025-10-27T16:30", "ctx": "post_exercice", "cc": 4.3, "bpm": 79, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_24", "dt": "2025-10-27T22:00", "ctx": "soir_repos", "cc": 1.6, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_25", "dt": "2025-10-28T08:00", "ctx": "matin_repos", "cc": 1.7, "bpm": 64, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_26", "dt": "2025-10-28T15:00", "ctx": "aprem_actif", "cc": 4.1, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_27", "dt": "2025-10-28T16:30", "ctx": "post_exercice", "cc": 4.5, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_28", "dt": "2025-10-28T22:00", "ctx": "soir_repos", "cc": 0.9, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_29", "dt": "2025-10-29T08:00", "ctx": "matin_repos", "cc": 1.1, "bpm": 69, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_30", "dt": "2025-10-29T15:00", "ctx": "aprem_actif", "cc": 1.5, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_31", "dt": "2025-10-29T16:30", "ctx": "post_exercice", "cc": 4.3, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_32", "dt": "2025-10-29T22:00", "ctx": "soir_repos", "cc": 0.5, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_33", "dt": "2025-10-30T08:00", "ctx": "matin_repos", "cc": 1.9, "bpm": 70, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_34", "dt": "2025-10-30T15:00", "ctx": "aprem_actif", "cc": 2.4, "bpm": 89, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_35", "dt": "2025-10-30T22:00", "ctx": "soir_repos", "cc": 1.2, "bpm": 77, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_36", "dt": "2025-10-31T08:00", "ctx": "matin_repos", "cc": 1.2, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_37", "dt": "2025-10-31T15:00", "ctx": "aprem_actif", "cc": 2.3, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_38", "dt": "2025-10-31T22:00", "ctx": "soir_repos", "cc": 0.6, "bpm": 72, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_39", "dt": "2025-11-01T08:00", "ctx": "matin_repos", "cc": 0.0, "bpm": 72, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_40", "dt": "2025-11-01T15:00", "ctx": "aprem_actif", "cc": 0.9, "bpm": 84, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_41", "dt": "2025-11-01T22:00", "ctx": "soir_repos", "cc": 1.0, "bpm": 67, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_42", "dt": "2025-11-02T08:00", "ctx": "matin_repos", "cc": 1.3, "bpm": 64, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_43", "dt": "2025-11-02T15:00", "ctx": "aprem_actif", "cc": 1.1, "bpm": 82, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_44", "dt": "2025-11-02T16:30", "ctx": "post_exercice", "cc": 3.8, "bpm": 83, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_45", "dt": "2025-11-02T22:00", "ctx": "soir_repos", "cc": 1.4, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_46", "dt": "2025-11-03T08:00", "ctx": "matin_repos", "cc": 1.5, "bpm": 67, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_47", "dt": "2025-11-03T15:00", "ctx": "aprem_actif", "cc": 1.7, "bpm": null, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_48", "dt": "2025-11-03T16:30", "ctx": "post_exercice", "cc": 3.9, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_49", "dt": "2025-11-03T22:00", "ctx": "soir_repos", "cc": 0.4, "bpm": 82, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_50", "dt": "2025-11-04T15:00", "ctx": "aprem_actif", "cc": 0.8, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_51", "dt": "2025-11-04T16:30", "ctx": "post_exercice", "cc": 3.1, "bpm": 75, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_52", "dt": "2025-11-04T22:00", "ctx": "soir_repos", "cc": 1.0, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_53", "dt": "2025-11-05T08:00", "ctx": "matin_repos", "cc": 2.2, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_54", "dt": "2025-11-05T15:00", "ctx": "aprem_actif", "cc": 2.3, "bpm": 87, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_55", "dt": "2025-11-05T16:30", "ctx": "post_exercice", "cc": 3.6, "bpm": 89, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_56", "dt": "2025-11-05T22:00", "ctx": "soir_repos", "cc": 0.4, "bpm": 55, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_57", "dt": "2025-11-06T08:00", "ctx": "matin_repos", "cc": 1.1, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_58", "dt": "2025-11-07T08:00", "ctx": "matin_repos", "cc": 1.1, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_59", "dt": "2025-11-07T22:00", "ctx": "soir_repos", "cc": 1.2, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_60", "dt": "2025-11-08T08:00", "ctx": "matin_repos", "cc": 1.9, "bpm": 65, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_61", "dt": "2025-11-08T15:00", "ctx": "aprem_actif", "cc": 0.8, "bpm": 76, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_62", "dt": "2025-11-08T16:30", "ctx": "post_exercice", "cc": 4.3, "bpm": 79, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_63", "dt": "2025-11-08T22:00", "ctx": "soir_repos", "cc": 3.1, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_64", "dt": "2025-11-09T08:00", "ctx": "matin_repos", "cc": 1.2, "bpm": 67, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_65", "dt": "2025-11-09T22:00", "ctx": "soir_repos", "cc": 2.0, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_66", "dt": "2025-11-10T08:00", "ctx": "matin_repos", "cc": 0.7, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_67", "dt": "2025-11-10T22:00", "ctx": "soir_repos", "cc": 1.0, "bpm": 71, "ex": "", "note": "import ods"}];
+
+  // =======================
+  // Données utilisateur (nouvelles mesures) – visibles (graphiques + historique)
+  // =======================
+  const KEY_USER = "cc_user_data_v1";
+
+  const CONTEXT_LABELS = {
+    matin_repos: "Matin – repos",
+    aprem_actif: "Après-midi – actif",
+    post_exercice: "Juste après exercice",
+    soir_repos: "Soir – repos",
+  };
+
+  // Seuil minimum par contexte
+  const MIN_CLASSIFY = 3;   // on commence à classer
+  const MIN_STABLE   = 8;   // on considère “stable”
+
+  function loadUserData(){
+    try{
+      const raw = localStorage.getItem(KEY_USER);
+      if(!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    }catch(e){ return []; }
+  }
+  function saveUserData(data){ localStorage.setItem(KEY_USER, JSON.stringify(data)); }
+
+  function getBaselineData(){
+    return Array.isArray(BASELINE_DATA) ? BASELINE_DATA : [];
+  }
+
+  function getAllDataForStats(){
+    // Stats = baseline + user
+    return [...getBaselineData(), ...loadUserData()];
+  }
+
+  // =======================
+  // Helpers
+  // =======================
+  function parseCC(s){
+    if(s == null) return null;
+    const t = String(s).trim().replace(",", ".");
+    if(t === "") return null;
+    const v = Number(t);
+    return Number.isFinite(v) ? v : null;
+  }
+  function parseBPM(v){
+    if(v === "" || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function fmtNum(x){
+    if(x == null || !Number.isFinite(x)) return "—";
+    return x.toFixed(2).replace(".", ",");
+  }
+  function fmtDelta(x){
+    if(x == null || !Number.isFinite(x)) return "—";
+    const s = x >= 0 ? "+" : "";
+    return (s + x.toFixed(2)).replace(".", ",");
+  }
+  function fmtDT(iso){
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return iso;
+    return d.toLocaleString("fr-FR",{ day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  }
+  function dayKey(iso){
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const da = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${da}`;
+  }
+  function escapeHtml(str){
+    return String(str||"")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;");
+  }
+
+  // Percentile linéaire
+  function percentile(values, p){
+    if(!values.length) return null;
+    const sorted = [...values].sort((a,b)=>a-b);
+    const idx = (sorted.length - 1) * p;
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if(lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+
+  // =======================
+  // Stats (baseline + user) – par contexte
+  // =======================
+  function statsByContext(data){
+    const out = {};
+    for(const ctx of Object.keys(CONTEXT_LABELS)){
+      const rows = data.filter(r => r.ctx === ctx && Number.isFinite(r.cc));
+      const ccs = rows.map(r=>r.cc);
+      const bpms = rows.map(r=>r.bpm).filter(v=>Number.isFinite(v));
+      out[ctx] = {
+        n: ccs.length,
+        mean: ccs.length ? ccs.reduce((a,b)=>a+b,0)/ccs.length : null,
+        p1618: percentile(ccs, 0.1618),
+        p2618: percentile(ccs, 0.2618),
+        p50: percentile(ccs, 0.5),
+        p75: percentile(ccs, 0.75),
+        bpm50: percentile(bpms, 0.5),
+      };
+    }
+    return out;
+  }
+
+  function classify(cc, st){
+    if(cc == null || !Number.isFinite(cc)) return {label:"N/A", badge:"", code:null};
+    if(!st || st.n < MIN_CLASSIFY || st.p1618 == null || st.p2618 == null){
+      return {label:`Seuils en cours (n<${MIN_CLASSIFY})`, badge:"b-amber", code:null};
+    }
+    const unstable = st.n < MIN_STABLE;
+    if(cc < st.p1618) return {label: unstable ? "TRÈS BAS (instable)" : "TRÈS BAS", badge:"b-red", code:2};
+    if(cc < st.p2618) return {label: unstable ? "BAS (instable)" : "BAS", badge:"b-amber", code:1};
+    return {label: unstable ? "OK (instable)" : "OK", badge:"b-green", code:0};
+  }
+
+  function profileSNA(row, st, zoneCode){
+    if(zoneCode !== 1 && zoneCode !== 2) return "";
+    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpm50 == null) return "";
+    return row.bpm > st.bpm50 ? "SYMPA" : "PARA";
+  }
+
+  // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
+  function deltaPostEx(row, userData){
+    if(row.ctx !== "post_exercice" || row.cc == null) return null;
+    const dk = dayKey(row.dt);
+    if(!dk) return null;
+
+    const candidates = userData
+      .filter(r => r.ctx === "aprem_actif" && dayKey(r.dt) === dk && Number.isFinite(r.cc))
+      .sort((a,b)=> new Date(a.dt) - new Date(b.dt));
+
+    if(!candidates.length) return null;
+
+    const tRow = new Date(row.dt).getTime();
+    let best = null;
+    for(const c of candidates){
+      if(new Date(c.dt).getTime() <= tRow) best = c;
+    }
+    if(!best) best = candidates[candidates.length-1];
+    return row.cc - best.cc;
+  }
+
+  // =======================
+  // Rendu UI
+  // =======================
+  function renderSummary(userData, stats){
+    const el = document.getElementById("summary");
+    if(!userData.length){
+      el.className = "empty";
+      el.innerHTML = `Aucune <b>nouvelle</b> mesure pour l’instant.<br>Les statistiques utilisent ta base historique (cachée) + tes nouvelles mesures.`;
+      return;
+    }
+    const last = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt))[0];
+    const st = stats[last.ctx];
+    const z = classify(last.cc, st);
+    const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
+    const delta = deltaPostEx(last, userData);
+    const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
+
+    el.className = "";
+    el.innerHTML = `
+      <div class="grid">
+        <div class="stat">
+          <div class="k">Dernière mesure (nouvelle)</div>
+          <div class="v">${fmtDT(last.dt)}</div>
+        </div>
+        <div class="stat">
+          <div class="k">Contexte</div>
+          <div class="v"><span class="badge b-type">${CONTEXT_LABELS[last.ctx]}</span></div>
+        </div>
+        <div class="stat">
+          <div class="k">CC / BPM</div>
+          <div class="v">${fmtNum(last.cc)} • ${last.bpm ?? "—"} BPM</div>
+        </div>
+        <div class="stat">
+          <div class="k">Zone (calculée sur base+nouveau)</div>
+          <div class="v"><span class="badge ${z.badge}">${z.label}</span>${prof ? ` <span class="badge b-type">${prof}</span>` : ""}</div>
+          <div class="small">${extra}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderStats(stats){
+    const root = document.getElementById("stats");
+    const rows = Object.keys(CONTEXT_LABELS).map(ctx=>{
+      const s = stats[ctx];
+      return `
+        <div class="stat">
+          <div class="k">${CONTEXT_LABELS[ctx]} — n=${s.n}</div>
+          <div class="v">P16,18: ${fmtNum(s.p1618)} • P26,18: ${fmtNum(s.p2618)}</div>
+          <div class="small">Moy.: ${fmtNum(s.mean)} • P50: ${fmtNum(s.p50)} • P75: ${fmtNum(s.p75)} • BPM méd.: ${s.bpm50!=null?Math.round(s.bpm50):"—"}</div>
+        </div>
+      `;
+    }).join("");
+    root.innerHTML = `<div class="grid">${rows}</div>`;
+  }
+
+  function renderHistory(userData, stats){
+    const el = document.getElementById("history");
+    if(!userData.length){
+      el.className = "empty";
+      el.textContent = "Aucune nouvelle mesure pour l’instant.";
+      return;
+    }
+    el.className = "";
+    const sorted = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt));
+
+    let html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>SYMPA/PARA</th><th>Δ post-ex</th><th>Note</th><th></th>
+          </tr>
+        </thead><tbody>
+    `;
+    for(const r of sorted){
+      const st = stats[r.ctx];
+      const z = classify(r.cc, st);
+      const prof = (z.code!=null) ? profileSNA(r, st, z.code) : "";
+      const dlt = deltaPostEx(r, userData);
+      html += `
+        <tr>
+          <td>${fmtDT(r.dt)}</td>
+          <td><span class="badge b-type">${CONTEXT_LABELS[r.ctx]}</span></td>
+          <td><b>${fmtNum(r.cc)}</b> • ${r.bpm ?? "—"}</td>
+          <td><span class="badge ${z.badge}">${z.label}</span></td>
+          <td>${prof ? `<span class="badge b-type">${prof}</span>` : "—"}</td>
+          <td>${r.ctx==="post_exercice" ? fmtDelta(dlt) : "—"}</td>
+          <td class="muted">${r.note ? escapeHtml(r.note) : "—"}</td>
+          <td><button class="danger" onclick="deleteRow('${r.id}')">Suppr.</button></td>
+        </tr>
+      `;
+    }
+    html += `</tbody></table>`;
+    el.innerHTML = html;
+  }
+
+  // ---- Canvas sizing
+  function setupCanvas(canvas){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(300, Math.round(rect.width * dpr));
+    canvas.height = Math.max(200, Math.round(rect.height * dpr));
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return ctx;
+  }
+  function clearCanvas(ctx){
+    const w = ctx.canvas.getBoundingClientRect().width;
+    const h = ctx.canvas.getBoundingClientRect().height;
+    ctx.clearRect(0,0,w,h);
+  }
+  function drawAxes(ctx, minY, maxY, titleY){
+    const w = ctx.canvas.getBoundingClientRect().width;
+    const h = ctx.canvas.getBoundingClientRect().height;
+    const pad = 44;
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pad, 10, w-pad-10, h-30);
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "12px system-ui";
+    ctx.fillText(titleY, 10, 18);
+    ctx.fillText(maxY.toFixed(2), 8, 42);
+    ctx.fillText(minY.toFixed(2), 8, h-22);
+    return {pad, w, h};
+  }
+  function toXY(scale, i, n, y){
+    const {pad, w, h, minY, maxY} = scale;
+    const x0 = pad, x1 = w - 10, y0 = 10, y1 = h - 20;
+    const x = n<=1 ? x0 : x0 + (x1-x0) * (i/(n-1));
+    const t = (y - minY) / (maxY - minY || 1);
+    const yy = y1 - (y1-y0)*t;
+    return {x, y:yy};
+  }
+
+  function renderCharts(userData, stats){
+    const byDay = {};
+    for(const r of userData){
+      const dk = dayKey(r.dt);
+      if(!dk) continue;
+      if(!byDay[dk]) byDay[dk] = {};
+      const prev = byDay[dk][r.ctx];
+      if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
+    }
+    const days = Object.keys(byDay).sort();
+
+    const g1_m = days.map(d=> byDay[d].matin_repos?.cc ?? null);
+    const g1_s = days.map(d=> byDay[d].soir_repos?.cc ?? null);
+
+    const g2_m = days.map(d=>{
+      const r = byDay[d].matin_repos; if(!r) return null;
+      const z = classify(r.cc, stats.matin_repos); return (z.code ?? null);
+    });
+    const g2_s = days.map(d=>{
+      const r = byDay[d].soir_repos; if(!r) return null;
+      const z = classify(r.cc, stats.soir_repos); return (z.code ?? null);
+    });
+
+    const g3 = days.map(d=>{
+      const r = byDay[d].post_exercice; if(!r) return null;
+      return deltaPostEx(r, userData);
+    });
+
+    function drawSeriesNulls(canvasId, seriesList, yLabel, fixedMinMax=null){
+      const canvas = document.getElementById(canvasId);
+      const ctx = setupCanvas(canvas);
+      clearCanvas(ctx);
+
+      const vals = [];
+      for(const ser of seriesList){
+        for(const v of ser.values){
+          if(v!=null && Number.isFinite(v)) vals.push(v);
+        }
+      }
+      if(!vals.length){
+        ctx.fillStyle="#6b7280";
+        ctx.font="13px system-ui";
+        ctx.fillText("Pas assez de nouvelles données pour tracer.", 16, 28);
+        return;
+      }
+
+      let minY = Math.min(...vals), maxY = Math.max(...vals);
+      if(fixedMinMax){ minY = fixedMinMax.min; maxY = fixedMinMax.max; }
+      else {
+        const padY = (maxY-minY)*0.12 || 1;
+        minY -= padY; maxY += padY;
+      }
+
+      const ax = drawAxes(ctx, minY, maxY, yLabel);
+      const scale = {pad: ax.pad, w: ax.w, h: ax.h, minY, maxY};
+
+      // legend
+      ctx.font="12px system-ui";
+      let lx = ax.pad + 8, ly = 22;
+      for(const ser of seriesList){
+        ctx.fillStyle = ser.fill;
+        ctx.fillRect(lx, ly-10, 10, 10);
+        ctx.fillStyle = "#111827";
+        ctx.fillText(ser.name, lx+14, ly-1);
+        ly += 16;
+      }
+
+      for(const ser of seriesList){
+        ctx.strokeStyle = ser.stroke;
+        ctx.fillStyle = ser.fill;
+        ctx.lineWidth = 2;
+        let seg = [];
+        for(let i=0;i<days.length;i++){
+          const v = ser.values[i];
+          if(v==null || !Number.isFinite(v)){ flush(seg); seg = []; }
+          else seg.push({i, v});
+        }
+        flush(seg);
+
+        function flush(seg){
+          if(seg.length>=2){
+            ctx.beginPath();
+            for(let k=0;k<seg.length;k++){
+              const p = toXY(scale, seg[k].i, days.length, seg[k].v);
+              if(k===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+            }
+            ctx.stroke();
+          }
+          for(const pt of seg){
+            const p = toXY(scale, pt.i, days.length, pt.v);
+            ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+          }
+        }
+      }
+
+      // x labels
+      ctx.fillStyle="#6b7280";
+      ctx.font="11px system-ui";
+      const step = Math.max(1, Math.floor(days.length/5));
+      for(let i=0;i<days.length;i+=step){
+        const x = toXY(scale,i,days.length,minY).x;
+        const label = days[i].slice(5);
+        ctx.fillText(label, x-14, ax.h-6);
+      }
+    }
+
+    drawSeriesNulls("c1", [
+      {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
+      {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
+    ], "CC");
+
+    drawSeriesNulls("c2", [
+      {name:"Matin score", values:g2_m, stroke:"#ef4444", fill:"#ef4444"},
+      {name:"Soir score", values:g2_s, stroke:"#f59e0b", fill:"#f59e0b"},
+    ], "Score (0/1/2)", {min:-0.2, max:2.2});
+
+    drawSeriesNulls("c3", [
+      {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
+    ], "Δ CC");
+  }
+
+  
+  function updateInputHints(stats){
+    const ctxSel = document.getElementById("ctx");
+    const ccInput = document.getElementById("cc");
+    const bpmInput = document.getElementById("bpm");
+    const ccHint = document.getElementById("ccHint");
+    const bpmHint = document.getElementById("bpmHint");
+    if(!ctxSel || !ccInput) return;
+
+    const ctx = ctxSel.value;
+    const st = stats && stats[ctx] ? stats[ctx] : null;
+
+    const mean = st && Number.isFinite(st.mean) ? fmtNum(st.mean) : "—";
+    const bpm50 = st && Number.isFinite(st.bpm50) ? String(Math.round(st.bpm50)) : "—";
+
+    // Placeholders = valeur moyenne/médiane, pour comparer au moment de saisir
+    ccInput.placeholder = mean !== "—" ? mean : "";
+    if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
+
+    if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
+    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
+  }
+
+
+// =======================
+  // Export/Import (uniquement nouvelles mesures)
+  // =======================
+  function download(filename, text){
+    const blob = new Blob([text], {type:"application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportJSON(){
+    const userData = loadUserData();
+    const payload = {
+      version: 3,
+      exportedAt: new Date().toISOString(),
+      userData,
+      baselineCount: getBaselineData().length
+    };
+    download("cc_user_export.json", JSON.stringify(payload, null, 2));
+  }
+
+  function importJSON(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const parsed = JSON.parse(reader.result);
+        const incoming = parsed.userData || parsed.data || parsed;
+        if(!Array.isArray(incoming)) throw new Error("bad");
+
+        const cleaned = incoming
+          .filter(x => x && typeof x === "object")
+          .map(x => ({
+            id: x.id || ("id_"+Date.now()+"_"+Math.random().toString(16).slice(2)),
+            dt: x.dt || x.datetime || "",
+            ctx: x.ctx || x.contexte || "matin_repos",
+            cc: Number.isFinite(x.cc) ? x.cc : parseCC(x.cc),
+            bpm: Number.isFinite(x.bpm) ? x.bpm : parseBPM(x.bpm),            note: x.note || ""
+          }))
+          .filter(x => x.dt && CONTEXT_LABELS[x.ctx] && Number.isFinite(x.cc));
+
+        if(!confirm(`Importer ${cleaned.length} nouvelles mesures et remplacer celles de ce navigateur ?`)) return;
+        saveUserData(cleaned);
+        refresh();
+        alert("Import terminé ✅");
+      }catch(e){
+        alert("Import impossible : fichier invalide.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // =======================
+  // Actions
+  // =======================
+  function initDateTime(){
+    const dt = document.getElementById("dt");
+    const now = new Date();
+    const pad = n => String(n).padStart(2,"0");
+    const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    dt.value = val;
+  }
+
+  function refresh(){
+    const userData = loadUserData();
+    const allData = getAllDataForStats();
+    const stats = statsByContext(allData);
+
+    renderSummary(userData, stats);
+    renderStats(stats);
+    renderHistory(userData, stats);
+    renderCharts(userData, stats);
+    updateInputHints(stats);
+  }
+
+  window.deleteRow = function(id){
+    if(!confirm("Supprimer cette entrée (nouvelle) ?")) return;
+    const data = loadUserData().filter(r => r.id !== id);
+    saveUserData(data);
+    refresh();
+  };
+
+  async function goFullscreen(){
+    const el = document.documentElement;
+    if(el.requestFullscreen) await el.requestFullscreen();
+  }
+
+  async function lockLandscape(){
+    try{
+      if(screen.orientation && screen.orientation.lock){
+        await screen.orientation.lock("landscape");
+      }else{
+        alert("Le verrouillage paysage n'est pas supporté. Tu peux tourner ton téléphone.");
+      }
+    }catch(e){
+      alert("Verrouillage paysage refusé (souvent il faut être en plein écran). Clique d'abord “Plein écran”, puis “Mode paysage”.");
+    }
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    initDateTime();
+    refresh();
+    window.addEventListener("resize", ()=> refresh(), {passive:true});
+
+    const ctxSel = document.getElementById("ctx");
+    ctxSel.addEventListener("change", ()=>{
+      const allData = getAllDataForStats();
+      const stats = statsByContext(allData);
+      updateInputHints(stats);
+    });
+
+    const form = document.getElementById("form");
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const dtVal = document.getElementById("dt").value;
+      const ctx = document.getElementById("ctx").value;
+      const cc = parseCC(document.getElementById("cc").value);
+      const bpm = parseBPM(document.getElementById("bpm").value);
+      const note = document.getElementById("note").value.trim();
+
+      if(!dtVal){ alert("Merci de renseigner la date/heure."); return; }
+      if(cc == null){ alert("Merci de renseigner un CC valide (ex : 1,6)."); return; }
+
+      const userData = loadUserData();
+      userData.push({
+        id: "id_"+Date.now()+"_"+Math.random().toString(16).slice(2),
+        dt: dtVal, ctx, cc, bpm, note
+      });
+      saveUserData(userData);
+
+      form.reset();
+      initDateTime();
+      refresh();
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", exportJSON);
+
+    const importBtn = document.getElementById("importBtn");
+    const importFile = document.getElementById("importFile");
+    importBtn.addEventListener("click", ()=> importFile.click());
+    importFile.addEventListener("change", (e)=>{
+      const f = e.target.files && e.target.files[0];
+      if(f) importJSON(f);
+      importFile.value = "";
+    });
+
+    document.getElementById("wipeBtn").addEventListener("click", ()=>{
+      if(!confirm("Effacer TOUTES tes nouvelles mesures dans ce navigateur ? (La base historique cachée reste.)")) return;
+      localStorage.removeItem(KEY_USER);
+      refresh();
+    });
+
+    document.getElementById("fullscreenBtn").addEventListener("click", goFullscreen);
+    document.getElementById("landscapeBtn").addEventListener("click", lockLandscape);
+  });
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    });
+  }
+</script>
+</body>
+</html>
