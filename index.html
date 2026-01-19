@@ -32,6 +32,12 @@
       width:100%; padding:10px 12px; border-radius:12px;
       border:1px solid #d1d5db; font-size:1rem;
     }
+    /* Valeurs dérivées (placeholders) : gris + italique */
+    input::placeholder, textarea::placeholder{
+      color: var(--muted);
+      font-style: italic;
+      opacity: 1;
+    }
     textarea{ min-height:64px; resize:vertical; }
     .actions{ display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-top:12px; }
     button{
@@ -103,12 +109,12 @@
         <div class="col">
           <label for="cc">CC</label>
           <input id="cc" type="text" inputmode="decimal" placeholder="">
-          <div id="ccHint" class="small">Moyenne (contexte): —</div>
+          <div id="ccHint" class="small">≈ Moyenne (contexte): —</div>
         </div>
         <div class="col">
           <label for="bpm">BPM</label>
           <input id="bpm" type="number" step="1" min="0" placeholder="">
-          <div id="bpmHint" class="small">BPM médian (contexte): —</div>
+          <div id="bpmHint" class="small">≈ Médiane (contexte): — • Seuils perso (P26/P74): —</div>
         </div>
       </div>
 
@@ -137,14 +143,14 @@
     <div id="stats" style="margin-top:10px;"></div>
     <div class="chips">
       <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
-      <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
-      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs médiane du contexte)</span>
+      <span class="chip">Zones CC : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
+      <span class="chip">Profil BPM : PARA si BPM ≤ P26 • SYMPA si BPM ≥ P74 • sinon INTERMÉDIAIRE (fenêtre glissante 30, séparée matin/soir)</span>
     </div>
   </div>
 
   <div class="card">
     <h2 style="margin:0;">Graphes (plein largeur)</h2>
-    <p class="small">1) CC repos matin & soir • 2) Score bas (0/1/2) matin & soir • 3) Δ post-ex vs aprem actif.</p>
+    <p class="small">1) CC repos matin & soir + moyenne matin • 2) Δ (soir − matin) + moyenne glissante • 3) Δ post-ex vs aprem actif.</p>
 
     <div class="charts">
       <div class="chart-card">
@@ -152,7 +158,7 @@
         <canvas id="c1"></canvas>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Score bas (matin & soir)</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ (soir − matin) + moyenne glissante</div>
         <canvas id="c2"></canvas>
       </div>
       <div class="chart-card">
@@ -189,6 +195,14 @@
   // Seuil minimum par contexte
   const MIN_CLASSIFY = 3;   // on commence à classer
   const MIN_STABLE   = 8;   // on considère “stable”
+
+  // BPM P26/P74 (perso)
+  const BPM_WINDOW = 30;      // fenêtre glissante (nb de mesures)
+  const BPM_MIN_N  = 12;      // minimum pour afficher/classer le profil BPM
+  const INTER_LABEL = \"INTERMÉDIAIRE\";
+
+  // Moyennes glissantes graphes
+  const MA_WINDOW = 7;
 
   function loadUserData(){
     try{
@@ -264,27 +278,66 @@
     return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
   }
 
-  // =======================
-  // Stats (baseline + user) – par contexte
-  // =======================
-  function statsByContext(data){
-    const out = {};
-    for(const ctx of Object.keys(CONTEXT_LABELS)){
-      const rows = data.filter(r => r.ctx === ctx && Number.isFinite(r.cc));
-      const ccs = rows.map(r=>r.cc);
-      const bpms = rows.map(r=>r.bpm).filter(v=>Number.isFinite(v));
-      out[ctx] = {
-        n: ccs.length,
-        mean: ccs.length ? ccs.reduce((a,b)=>a+b,0)/ccs.length : null,
-        p1618: percentile(ccs, 0.1618),
-        p2618: percentile(ccs, 0.2618),
-        p50: percentile(ccs, 0.5),
-        p75: percentile(ccs, 0.75),
-        bpm50: percentile(bpms, 0.5),
-      };
+  function movingAverage(values, windowSize){
+    const out = new Array(values.length).fill(null);
+    for(let i=0;i<values.length;i++){
+      let sum = 0, n = 0;
+      for(let j=Math.max(0, i-windowSize+1); j<=i; j++){
+        const v = values[j];
+        if(v!=null && Number.isFinite(v)){ sum += v; n++; }
+      }
+      out[i] = n ? sum/n : null;
     }
     return out;
   }
+
+  function bpmThresholdsSliding(allData, ctx){
+    const rows = allData
+      .filter(r => r && r.ctx === ctx && Number.isFinite(r.bpm))
+      .sort((a,b)=> new Date(b.dt) - new Date(a.dt))
+      .slice(0, BPM_WINDOW);
+    const bpms = rows.map(r=>r.bpm).filter(v=>Number.isFinite(v));
+    return {
+      n: bpms.length,
+      p26: percentile(bpms, 0.26),
+      p74: percentile(bpms, 0.74),
+      p50: percentile(bpms, 0.50),
+    };
+  }
+
+  // =======================
+  // Stats (baseline + user) – par contexte
+  // =======================
+  
+function statsByContext(data){
+  const out = {};
+  for(const ctx of Object.keys(CONTEXT_LABELS)){
+    const rows = data.filter(r => r.ctx === ctx && Number.isFinite(r.cc));
+    const ccs = rows.map(r=>r.cc);
+
+    const bpmsAll = data.filter(r => r.ctx === ctx && Number.isFinite(r.bpm)).map(r=>r.bpm);
+    const bpmS = bpmThresholdsSliding(data, ctx);
+
+    out[ctx] = {
+      n: ccs.length,
+      mean: ccs.length ? ccs.reduce((a,b)=>a+b,0)/ccs.length : null,
+      p1618: percentile(ccs, 0.1618),
+      p2618: percentile(ccs, 0.2618),
+      p50: percentile(ccs, 0.5),
+      p75: percentile(ccs, 0.75),
+
+      // BPM médiane (historique complet, info)
+      bpm50: percentile(bpmsAll, 0.5),
+
+      // BPM P26/P74 glissants (30 dernières, pour classification)
+      bpmWinN: bpmS.n,
+      bpmP26: bpmS.p26,
+      bpmP74: bpmS.p74,
+      bpmP50w: bpmS.p50,
+    };
+  }
+  return out;
+}
 
   function classify(cc, st){
     if(cc == null || !Number.isFinite(cc)) return {label:"N/A", badge:"", code:null};
@@ -297,11 +350,15 @@
     return {label: unstable ? "OK (instable)" : "OK", badge:"b-green", code:0};
   }
 
-  function profileSNA(row, st, zoneCode){
-    if(zoneCode !== 1 && zoneCode !== 2) return "";
-    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpm50 == null) return "";
-    return row.bpm > st.bpm50 ? "SYMPA" : "PARA";
-  }
+  
+function profileBPM(row, st){
+  if(!row || row.bpm == null || !Number.isFinite(row.bpm)) return "";
+  if(!st || st.bpmWinN == null || st.bpmWinN < BPM_MIN_N || st.bpmP26 == null || st.bpmP74 == null) return "";
+  if(row.bpm <= st.bpmP26) return "PARA";
+  if(row.bpm >= st.bpmP74) return "SYMPA";
+  return INTER_LABEL;
+}
+
 
   // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
   function deltaPostEx(row, userData){
@@ -337,7 +394,7 @@
     const last = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt))[0];
     const st = stats[last.ctx];
     const z = classify(last.cc, st);
-    const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
+    const prof = profileBPM(last, st);
     const delta = deltaPostEx(last, userData);
     const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
 
@@ -394,14 +451,14 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>SYMPA/PARA</th><th>Δ post-ex</th><th>Note</th><th></th>
+            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>Profil BPM</th><th>Δ post-ex</th><th>Note</th><th></th>
           </tr>
         </thead><tbody>
     `;
     for(const r of sorted){
       const st = stats[r.ctx];
       const z = classify(r.cc, st);
-      const prof = (z.code!=null) ? profileSNA(r, st, z.code) : "";
+      const prof = profileBPM(r, st);
       const dlt = deltaPostEx(r, userData);
       html += `
         <tr>
@@ -458,128 +515,133 @@
     return {x, y:yy};
   }
 
-  function renderCharts(userData, stats){
-    const byDay = {};
-    for(const r of userData){
-      const dk = dayKey(r.dt);
-      if(!dk) continue;
-      if(!byDay[dk]) byDay[dk] = {};
-      const prev = byDay[dk][r.ctx];
-      if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
+  
+function renderCharts(userData, stats){
+  const byDay = {};
+  for(const r of userData){
+    const dk = dayKey(r.dt);
+    if(!dk) continue;
+    if(!byDay[dk]) byDay[dk] = {};
+    const prev = byDay[dk][r.ctx];
+    if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
+  }
+  const days = Object.keys(byDay).sort();
+
+  // Graphe 1 : CC matin/soir + moyenne matin
+  const g1_m = days.map(d=> byDay[d].matin_repos?.cc ?? null);
+  const g1_s = days.map(d=> byDay[d].soir_repos?.cc ?? null);
+  const g1_m_ma = movingAverage(g1_m, MA_WINDOW);
+
+  // Graphe 2 : Δ (soir - matin) + moyenne glissante
+  const g2_delta = days.map(d=>{
+    const m = byDay[d].matin_repos?.cc;
+    const s = byDay[d].soir_repos?.cc;
+    if(m==null || s==null || !Number.isFinite(m) || !Number.isFinite(s)) return null;
+    return s - m;
+  });
+  const g2_ma = movingAverage(g2_delta, MA_WINDOW);
+
+  // Graphe 3 : Δ post-ex
+  const g3 = days.map(d=>{
+    const r = byDay[d].post_exercice; if(!r) return null;
+    return deltaPostEx(r, userData);
+  });
+
+  function drawSeriesNulls(canvasId, seriesList, yLabel, fixedMinMax=null){
+    const canvas = document.getElementById(canvasId);
+    const ctx = setupCanvas(canvas);
+    clearCanvas(ctx);
+
+    const vals = [];
+    for(const ser of seriesList){
+      for(const v of ser.values){
+        if(v!=null && Number.isFinite(v)) vals.push(v);
+      }
     }
-    const days = Object.keys(byDay).sort();
-
-    const g1_m = days.map(d=> byDay[d].matin_repos?.cc ?? null);
-    const g1_s = days.map(d=> byDay[d].soir_repos?.cc ?? null);
-
-    const g2_m = days.map(d=>{
-      const r = byDay[d].matin_repos; if(!r) return null;
-      const z = classify(r.cc, stats.matin_repos); return (z.code ?? null);
-    });
-    const g2_s = days.map(d=>{
-      const r = byDay[d].soir_repos; if(!r) return null;
-      const z = classify(r.cc, stats.soir_repos); return (z.code ?? null);
-    });
-
-    const g3 = days.map(d=>{
-      const r = byDay[d].post_exercice; if(!r) return null;
-      return deltaPostEx(r, userData);
-    });
-
-    function drawSeriesNulls(canvasId, seriesList, yLabel, fixedMinMax=null){
-      const canvas = document.getElementById(canvasId);
-      const ctx = setupCanvas(canvas);
-      clearCanvas(ctx);
-
-      const vals = [];
-      for(const ser of seriesList){
-        for(const v of ser.values){
-          if(v!=null && Number.isFinite(v)) vals.push(v);
-        }
-      }
-      if(!vals.length){
-        ctx.fillStyle="#6b7280";
-        ctx.font="13px system-ui";
-        ctx.fillText("Pas assez de nouvelles données pour tracer.", 16, 28);
-        return;
-      }
-
-      let minY = Math.min(...vals), maxY = Math.max(...vals);
-      if(fixedMinMax){ minY = fixedMinMax.min; maxY = fixedMinMax.max; }
-      else {
-        const padY = (maxY-minY)*0.12 || 1;
-        minY -= padY; maxY += padY;
-      }
-
-      const ax = drawAxes(ctx, minY, maxY, yLabel);
-      const scale = {pad: ax.pad, w: ax.w, h: ax.h, minY, maxY};
-
-      // legend
-      ctx.font="12px system-ui";
-      let lx = ax.pad + 8, ly = 22;
-      for(const ser of seriesList){
-        ctx.fillStyle = ser.fill;
-        ctx.fillRect(lx, ly-10, 10, 10);
-        ctx.fillStyle = "#111827";
-        ctx.fillText(ser.name, lx+14, ly-1);
-        ly += 16;
-      }
-
-      for(const ser of seriesList){
-        ctx.strokeStyle = ser.stroke;
-        ctx.fillStyle = ser.fill;
-        ctx.lineWidth = 2;
-        let seg = [];
-        for(let i=0;i<days.length;i++){
-          const v = ser.values[i];
-          if(v==null || !Number.isFinite(v)){ flush(seg); seg = []; }
-          else seg.push({i, v});
-        }
-        flush(seg);
-
-        function flush(seg){
-          if(seg.length>=2){
-            ctx.beginPath();
-            for(let k=0;k<seg.length;k++){
-              const p = toXY(scale, seg[k].i, days.length, seg[k].v);
-              if(k===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
-            }
-            ctx.stroke();
-          }
-          for(const pt of seg){
-            const p = toXY(scale, pt.i, days.length, pt.v);
-            ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
-          }
-        }
-      }
-
-      // x labels
+    if(!vals.length){
       ctx.fillStyle="#6b7280";
-      ctx.font="11px system-ui";
-      const step = Math.max(1, Math.floor(days.length/5));
-      for(let i=0;i<days.length;i+=step){
-        const x = toXY(scale,i,days.length,minY).x;
-        const label = days[i].slice(5);
-        ctx.fillText(label, x-14, ax.h-6);
+      ctx.font="13px system-ui";
+      ctx.fillText("Pas assez de nouvelles données pour tracer.", 16, 28);
+      return;
+    }
+
+    let minY = Math.min(...vals), maxY = Math.max(...vals);
+    if(fixedMinMax){ minY = fixedMinMax.min; maxY = fixedMinMax.max; }
+    else {
+      const padY = (maxY-minY)*0.12 || 1;
+      minY -= padY; maxY += padY;
+    }
+
+    const ax = drawAxes(ctx, minY, maxY, yLabel);
+    const scale = {pad: ax.pad, w: ax.w, h: ax.h, minY, maxY};
+
+    // legend
+    ctx.font="12px system-ui";
+    let lx = ax.pad + 8, ly = 22;
+    for(const ser of seriesList){
+      ctx.fillStyle = ser.fill;
+      ctx.fillRect(lx, ly-10, 10, 10);
+      ctx.fillStyle = "#111827";
+      ctx.fillText(ser.name, lx+14, ly-1);
+      ly += 16;
+    }
+
+    for(const ser of seriesList){
+      ctx.strokeStyle = ser.stroke;
+      ctx.fillStyle = ser.fill;
+      ctx.lineWidth = ser.lineWidth ?? 2;
+      let seg = [];
+      for(let i=0;i<days.length;i++){
+        const v = ser.values[i];
+        if(v==null || !Number.isFinite(v)){ flush(seg); seg = []; }
+        else seg.push({i, v});
+      }
+      flush(seg);
+
+      function flush(seg){
+        if(seg.length>=2){
+          ctx.beginPath();
+          for(let k=0;k<seg.length;k++){
+            const p = toXY(scale, seg[k].i, days.length, seg[k].v);
+            if(k===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+          }
+          ctx.stroke();
+        }
+        for(const pt of seg){
+          const p = toXY(scale, pt.i, days.length, pt.v);
+          ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+        }
       }
     }
 
-    drawSeriesNulls("c1", [
-      {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
-      {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
-    ], "CC");
-
-    drawSeriesNulls("c2", [
-      {name:"Matin score", values:g2_m, stroke:"#ef4444", fill:"#ef4444"},
-      {name:"Soir score", values:g2_s, stroke:"#f59e0b", fill:"#f59e0b"},
-    ], "Score (0/1/2)", {min:-0.2, max:2.2});
-
-    drawSeriesNulls("c3", [
-      {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
-    ], "Δ CC");
+    // x labels
+    ctx.fillStyle="#6b7280";
+    ctx.font="11px system-ui";
+    const step = Math.max(1, Math.floor(days.length/5));
+    for(let i=0;i<days.length;i+=step){
+      const x = toXY(scale,i,days.length,minY).x;
+      const label = days[i].slice(5);
+      ctx.fillText(label, x-14, ax.h-6);
+    }
   }
 
-  
+  drawSeriesNulls("c1", [
+    {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
+    {name:"Moy. matin (7j)", values:g1_m_ma, stroke:"#111827", fill:"#111827", lineWidth:1.5},
+    {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
+  ], "CC");
+
+  drawSeriesNulls("c2", [
+    {name:"Δ (soir - matin)", values:g2_delta, stroke:"#7c3aed", fill:"#7c3aed"},
+    {name:"Moy. Δ (7j)", values:g2_ma, stroke:"#111827", fill:"#111827", lineWidth:1.5},
+  ], "Δ CC");
+
+  drawSeriesNulls("c3", [
+    {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
+  ], "Δ CC");
+}
+
+
   function updateInputHints(stats){
     const ctxSel = document.getElementById("ctx");
     const ccInput = document.getElementById("cc");
@@ -594,12 +656,15 @@
     const mean = st && Number.isFinite(st.mean) ? fmtNum(st.mean) : "—";
     const bpm50 = st && Number.isFinite(st.bpm50) ? String(Math.round(st.bpm50)) : "—";
 
-    // Placeholders = valeur moyenne/médiane, pour comparer au moment de saisir
+    const p26 = st && st.bpmWinN>=BPM_MIN_N && Number.isFinite(st.bpmP26) ? String(Math.round(st.bpmP26)) : "—";
+    const p74 = st && st.bpmWinN>=BPM_MIN_N && Number.isFinite(st.bpmP74) ? String(Math.round(st.bpmP74)) : "—";
+
+    // Placeholders = valeur moyenne/médiane (dérivée)
     ccInput.placeholder = mean !== "—" ? mean : "";
     if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
 
-    if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
-    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
+    if(ccHint) ccHint.textContent = `≈ Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
+    if(bpmHint) bpmHint.textContent = `≈ Médiane (contexte): ${bpm50} • Seuils perso (P26/P74): ${p26}/${p74} (n=${st ? st.bpmWinN : 0})`;
   }
 
 
@@ -661,6 +726,8 @@
   // =======================
   function initDateTime(){
     const dt = document.getElementById("dt");
+    if(!dt) return;
+    if(dt.value && String(dt.value).trim() !== "") return;
     const now = new Date();
     const pad = n => String(n).padStart(2,"0");
     const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
