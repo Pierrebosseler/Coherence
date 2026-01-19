@@ -66,6 +66,7 @@
     th{ text-align:left; font-size:.78rem; color:var(--muted); font-weight:650; }
     .empty{ color:var(--muted); }
     .small{ font-size:.9rem; color:var(--muted); margin:6px 0 0; }
+    .derived{ color:var(--muted); font-style:italic; }
     /* Graphes: 1 par ligne, plein largeur (mobile-first) */
     .charts{ display:flex; flex-direction:column; gap:12px; margin-top:10px; }
     .chart-card{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; }
@@ -79,7 +80,7 @@
 </head>
 <body>
 <div class="app">
-  <h1>Suivi CC (Cohérence Cardiaque) version testt 9999</h1>
+  <h1>Suivi CC (Cohérence Cardiaque)</h1>
   <p class="sub">Saisie CC + BPM • seuils & zones recalculés automatiquement • focus sur tes nouvelles progressions.</p>
 
   <div class="card">
@@ -103,12 +104,12 @@
         <div class="col">
           <label for="cc">CC</label>
           <input id="cc" type="text" inputmode="decimal" placeholder="">
-          <div id="ccHint" class="small">Moyenne (contexte): —</div>
+          <div id="ccHint" class="small derived">Moyenne (contexte): —</div>
         </div>
         <div class="col">
           <label for="bpm">BPM</label>
           <input id="bpm" type="number" step="1" min="0" placeholder="">
-          <div id="bpmHint" class="small">BPM médian (contexte): —</div>
+          <div id="bpmHint" class="small derived">BPM médian (contexte): —</div>
         </div>
       </div>
 
@@ -138,13 +139,13 @@
     <div class="chips">
       <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
       <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
-      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs médiane du contexte)</span>
+      <span class="chip">SYMPA/PARA via tes BPM (P26/P74 glissant, séparé matin/soir)</span>
     </div>
   </div>
 
   <div class="card">
     <h2 style="margin:0;">Graphes (plein largeur)</h2>
-    <p class="small">1) CC repos matin & soir • 2) Score bas (0/1/2) matin & soir • 3) Δ post-ex vs aprem actif.</p>
+    <p class="small">1) CC repos matin & soir + moyennes • 2) Δ (soir − matin) + moyenne • 3) Δ post-ex vs aprem actif.</p>
 
     <div class="charts">
       <div class="chart-card">
@@ -152,7 +153,7 @@
         <canvas id="c1"></canvas>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Score bas (matin & soir)</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ (soir − matin) + moyenne</div>
         <canvas id="c2"></canvas>
       </div>
       <div class="chart-card">
@@ -297,10 +298,36 @@
     return {label: unstable ? "OK (instable)" : "OK", badge:"b-green", code:0};
   }
 
-  function profileSNA(row, st, zoneCode){
-    if(zoneCode !== 1 && zoneCode !== 2) return "";
-    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpm50 == null) return "";
-    return row.bpm > st.bpm50 ? "SYMPA" : "PARA";
+  function percentileOnRows(rows, p){
+    const vals = rows.map(r=>r.bpm).filter(v=>Number.isFinite(v));
+    return percentile(vals, p);
+  }
+
+  // SYMPA/PARA basé sur TES BPM (P26/P74 glissant) et séparé matin/soir
+  // - on calcule sur les 30 dernières mesures (du même contexte) qui ont un BPM
+  // - si moins de 8 valeurs, on n'affiche rien (pas assez stable)
+  function profileSNA(row, allData){
+    if(!row || row.bpm == null || !Number.isFinite(row.bpm)) return {label:"", detail:""};
+    const ctx = row.ctx;
+    if(ctx !== "matin_repos" && ctx !== "soir_repos") return {label:"", detail:""};
+
+    const pool = allData
+      .filter(r => r && r.ctx === ctx && Number.isFinite(r.bpm) && r.dt)
+      .sort((a,b)=> new Date(b.dt) - new Date(a.dt))
+      .slice(0, 30);
+
+    if(pool.length < 8) return {label:"", detail:""};
+
+    const p26 = percentileOnRows(pool, 0.26);
+    const p74 = percentileOnRows(pool, 0.74);
+    if(p26 == null || p74 == null) return {label:"", detail:""};
+
+    let label = "Zone intermédiaire";
+    if(row.bpm <= p26) label = "PARA";
+    else if(row.bpm >= p74) label = "SYMPA";
+
+    const detail = `Seuils ${ctx==="matin_repos"?"matin":"soir"}: P26=${Math.round(p26)} • P74=${Math.round(p74)} (n=${pool.length})`;
+    return {label, detail};
   }
 
   // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
@@ -327,7 +354,7 @@
   // =======================
   // Rendu UI
   // =======================
-  function renderSummary(userData, stats){
+  function renderSummary(userData, stats, allData){
     const el = document.getElementById("summary");
     if(!userData.length){
       el.className = "empty";
@@ -337,7 +364,9 @@
     const last = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt))[0];
     const st = stats[last.ctx];
     const z = classify(last.cc, st);
-    const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
+    const profObj = profileSNA(last, allData);
+    const prof = profObj.label;
+    const profDetail = profObj.detail;
     const delta = deltaPostEx(last, userData);
     const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
 
@@ -359,7 +388,7 @@
         <div class="stat">
           <div class="k">Zone (calculée sur base+nouveau)</div>
           <div class="v"><span class="badge ${z.badge}">${z.label}</span>${prof ? ` <span class="badge b-type">${prof}</span>` : ""}</div>
-          <div class="small">${extra}</div>
+          <div class="small">${extra}${profDetail ? ` • <span class="muted">${profDetail}</span>` : ""}</div>
         </div>
       </div>
     `;
@@ -380,7 +409,7 @@
     root.innerHTML = `<div class="grid">${rows}</div>`;
   }
 
-  function renderHistory(userData, stats){
+  function renderHistory(userData, stats, allData){
     const el = document.getElementById("history");
     if(!userData.length){
       el.className = "empty";
@@ -394,14 +423,16 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>SYMPA/PARA</th><th>Δ post-ex</th><th>Note</th><th></th>
+            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>Activation</th><th>Δ post-ex</th><th>Note</th><th></th>
           </tr>
         </thead><tbody>
     `;
     for(const r of sorted){
       const st = stats[r.ctx];
       const z = classify(r.cc, st);
-      const prof = (z.code!=null) ? profileSNA(r, st, z.code) : "";
+      const profObj = profileSNA(r, allData);
+      const prof = profObj.label;
+      const profDetail = profObj.detail;
       const dlt = deltaPostEx(r, userData);
       html += `
         <tr>
@@ -409,7 +440,7 @@
           <td><span class="badge b-type">${CONTEXT_LABELS[r.ctx]}</span></td>
           <td><b>${fmtNum(r.cc)}</b> • ${r.bpm ?? "—"}</td>
           <td><span class="badge ${z.badge}">${z.label}</span></td>
-          <td>${prof ? `<span class="badge b-type">${prof}</span>` : "—"}</td>
+          <td>${prof ? `<span class="badge b-type" title="${escapeHtml(profDetail)}">${prof}</span>` : "—"}</td>
           <td>${r.ctx==="post_exercice" ? fmtDelta(dlt) : "—"}</td>
           <td class="muted">${r.note ? escapeHtml(r.note) : "—"}</td>
           <td><button class="danger" onclick="deleteRow('${r.id}')">Suppr.</button></td>
@@ -472,14 +503,32 @@
     const g1_m = days.map(d=> byDay[d].matin_repos?.cc ?? null);
     const g1_s = days.map(d=> byDay[d].soir_repos?.cc ?? null);
 
-    const g2_m = days.map(d=>{
-      const r = byDay[d].matin_repos; if(!r) return null;
-      const z = classify(r.cc, stats.matin_repos); return (z.code ?? null);
+    // Moyennes glissantes (par jour, sur les nouvelles mesures)
+    function movingAverage(arr, win){
+      const out = [];
+      for(let i=0;i<arr.length;i++){
+        let sum = 0, n = 0;
+        for(let k=Math.max(0,i-win+1); k<=i; k++){
+          const v = arr[k];
+          if(v!=null && Number.isFinite(v)){ sum += v; n++; }
+        }
+        out.push(n ? sum/n : null);
+      }
+      return out;
+    }
+
+    // Graphe 1: CC matin/soir + moyenne glissante matin (7j)
+    const g1_m_ma7 = movingAverage(g1_m, 7);
+
+    // Graphe 2: Δ = soir - matin + moyenne glissante (7j)
+    const g2_delta = days.map(d=>{
+      const m = byDay[d].matin_repos?.cc;
+      const s = byDay[d].soir_repos?.cc;
+      if(m==null || s==null) return null;
+      if(!Number.isFinite(m) || !Number.isFinite(s)) return null;
+      return s - m;
     });
-    const g2_s = days.map(d=>{
-      const r = byDay[d].soir_repos; if(!r) return null;
-      const z = classify(r.cc, stats.soir_repos); return (z.code ?? null);
-    });
+    const g2_delta_ma7 = movingAverage(g2_delta, 7);
 
     const g3 = days.map(d=>{
       const r = byDay[d].post_exercice; if(!r) return null;
@@ -566,15 +615,45 @@
 
     drawSeriesNulls("c1", [
       {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
+      {name:"Moy. matin 7j", values:g1_m_ma7, stroke:"#111827", fill:"#111827"},
       {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
     ], "CC");
 
     drawSeriesNulls("c2", [
-      {name:"Matin score", values:g2_m, stroke:"#ef4444", fill:"#ef4444"},
-      {name:"Soir score", values:g2_s, stroke:"#f59e0b", fill:"#f59e0b"},
-    ], "Score (0/1/2)", {min:-0.2, max:2.2});
+      {name:"Δ (soir - matin)", values:g2_delta, stroke:"#7c3aed", fill:"#7c3aed"},
+      {name:"Moy. Δ 7j", values:g2_delta_ma7, stroke:"#111827", fill:"#111827"},
+    ], "Δ CC");
 
-    drawSeriesNulls("c3", [
+    // Ligne 0 (référence) sur le graphe Δ
+    try{
+      const canvas = document.getElementById("c2");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const vals = [];
+      for(const v of g2_delta){ if(v!=null && Number.isFinite(v)) vals.push(v); }
+      for(const v of g2_delta_ma7){ if(v!=null && Number.isFinite(v)) vals.push(v); }
+      if(vals.length){
+        let minY = Math.min(...vals), maxY = Math.max(...vals);
+        const padY = (maxY-minY)*0.12 || 1;
+        minY -= padY; maxY += padY;
+        const pad = 44;
+        const x0 = pad, x1 = w - 10, y0 = 10, y1 = h - 20;
+        const t0 = (0 - minY) / (maxY - minY || 1);
+        const yZero = y1 - (y1-y0)*t0;
+        ctx.save();
+        ctx.strokeStyle = "#9ca3af";
+        ctx.setLineDash([6,4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, yZero);
+        ctx.lineTo(x1, yZero);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }catch(e){}
+
+    drawSeriesNulls("c3, [
       {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
     ], "Δ CC");
   }
@@ -598,8 +677,8 @@
     ccInput.placeholder = mean !== "—" ? mean : "";
     if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
 
-    if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
-    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
+    if(ccHint) ccHint.textContent = `≈ ${mean} (moy.)  •  n=${st ? st.n : 0}`;
+    if(bpmHint) bpmHint.textContent = `≈ ${bpm50} (méd.)`;
   }
 
 
@@ -672,9 +751,9 @@
     const allData = getAllDataForStats();
     const stats = statsByContext(allData);
 
-    renderSummary(userData, stats);
+    renderSummary(userData, stats, allData);
     renderStats(stats);
-    renderHistory(userData, stats);
+    renderHistory(userData, stats, allData);
     renderCharts(userData, stats);
     updateInputHints(stats);
   }
