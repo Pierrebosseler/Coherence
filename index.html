@@ -148,7 +148,7 @@
     <div class="chips">
       <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
       <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
-      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs médiane du contexte)</span>
+      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs P16/P84 glissant, par contexte)</span>
     </div>
   </div>
 
@@ -311,11 +311,40 @@
     return {label: unstable ? "OK (instable)" : "OK", badge:"b-green", code:0};
   }
 
-  function profileSNA(row, st, zoneCode){
-    if(zoneCode !== 1 && zoneCode !== 2) return "";
-    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpm50 == null) return "";
-    return row.bpm > st.bpm50 ? "SYMPA" : "PARA";
+  // --- BPM percentiles glissants (activation)
+  // Règle: PARA si BPM <= P16 ; SYMPA si BPM >= P84 (P100-16)
+  // Calculé sur une fenêtre glissante (par contexte) des dernières valeurs BPM disponibles.
+  const BPM_WINDOW = 30;
+
+  function bpmThresholdsSliding(ctx, uptoIso, allData){
+    const uptoT = uptoIso ? new Date(uptoIso).getTime() : Infinity;
+    const rows = (allData || [])
+      .filter(r => r && r.ctx === ctx && Number.isFinite(r.bpm) && (new Date(r.dt).getTime() <= uptoT))
+      .sort((a,b)=> new Date(a.dt) - new Date(b.dt));
+    const tail = rows.slice(Math.max(0, rows.length - BPM_WINDOW));
+    const bpms = tail.map(r=>r.bpm).filter(v=>Number.isFinite(v));
+    if(bpms.length < MIN_CLASSIFY) return {p16:null, p84:null, n:bpms.length};
+    return {
+      p16: percentile(bpms, 0.16),
+      p84: percentile(bpms, 0.84),
+      n: bpms.length,
+    };
   }
+
+  function profileSNA(row, zoneCode, allData){
+    // On affiche une info d'activation uniquement si CC BAS ou TRÈS BAS.
+    if(zoneCode !== 1 && zoneCode !== 2) return "";
+    if(!row || row.bpm == null || !Number.isFinite(row.bpm)) return "";
+
+    const th = bpmThresholdsSliding(row.ctx, row.dt, allData);
+    if(th.p16 == null || th.p84 == null) return "";
+
+    if(row.bpm <= th.p16) return "PARA";
+    if(row.bpm >= th.p84) return "SYMPA";
+    // zone intermédiaire: on n'affiche rien pour éviter le bruit
+    return "";
+  }
+
 
   // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
   function deltaPostEx(row, userData){
@@ -341,7 +370,7 @@
   // =======================
   // Rendu UI
   // =======================
-  function renderSummary(userData, stats){
+  function renderSummary(userData, stats, allData){
     const el = document.getElementById("summary");
     if(!userData.length){
       el.className = "empty";
@@ -351,7 +380,7 @@
     const last = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt))[0];
     const st = stats[last.ctx];
     const z = classify(last.cc, st);
-    const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
+    const prof = (z.code!=null) ? profileSNA(last, z.code, allData) : "";
     const delta = deltaPostEx(last, userData);
     const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
 
@@ -394,7 +423,7 @@
     root.innerHTML = `<div class="grid">${rows}</div>`;
   }
 
-  function renderHistory(userData, stats){
+  function renderHistory(userData, stats, allData){
     const el = document.getElementById("history");
     if(!userData.length){
       el.className = "empty";
@@ -415,7 +444,7 @@
     for(const r of sorted){
       const st = stats[r.ctx];
       const z = classify(r.cc, st);
-      const prof = (z.code!=null) ? profileSNA(r, st, z.code) : "";
+      const prof = (z.code!=null) ? profileSNA(r, z.code, allData) : "";
       const dlt = deltaPostEx(r, userData);
       html += `
         <tr>
@@ -718,7 +747,12 @@
     if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
 
     if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
-    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
+    if(bpmHint){
+      const th = bpmThresholdsSliding(ctx, null, getAllDataForStats());
+      const p16 = th.p16!=null ? String(Math.round(th.p16)) : "—";
+      const p84 = th.p84!=null ? String(Math.round(th.p84)) : "—";
+      bpmHint.textContent = `BPM médian (contexte): ${bpm50}  •  P16/P84: ${p16}/${p84}`;
+    }
   }
 
 
@@ -791,9 +825,9 @@
     const allData = getAllDataForStats();
     const stats = statsByContext(allData);
 
-    renderSummary(userData, stats);
+    renderSummary(userData, stats, allData);
     renderStats(stats);
-    renderHistory(userData, stats);
+    renderHistory(userData, stats, allData);
     renderCharts(userData, stats);
     updateInputHints(stats);
   }
