@@ -1,4 +1,4 @@
-const CACHE_NAME = "cc-pwa-v2"; // <-- incrémente à chaque grosse modif
+const CACHE_NAME = "cc-pwa-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -8,7 +8,7 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting(); // active plus vite la nouvelle version
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
@@ -18,14 +18,13 @@ self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(keys.map((k) => (k === CACHE_NAME ? null : caches.delete(k))));
-    await self.clients.claim(); // prend le contrôle tout de suite
+    await self.clients.claim();
   })());
 });
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // Pour les navigations (ouvrir l’app / recharger), on privilégie index.html
   if (req.mode === "navigate") {
     event.respondWith(
       fetch("./index.html").catch(() => caches.match("./index.html"))
