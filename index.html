@@ -66,11 +66,20 @@
     th{ text-align:left; font-size:.78rem; color:var(--muted); font-weight:650; }
     .empty{ color:var(--muted); }
     .small{ font-size:.9rem; color:var(--muted); margin:6px 0 0; }
-    .derived{ color:var(--muted); font-style:italic; }
     /* Graphes: 1 par ligne, plein largeur (mobile-first) */
     .charts{ display:flex; flex-direction:column; gap:12px; margin-top:10px; }
     .chart-card{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; }
     canvas{ width:100%; height:360px; border:1px solid var(--border); border-radius:12px; background:#fff; }
+    /* Lecture systeme nerveux (graphe 2) */
+    .status{ border:1px solid var(--border); border-radius:12px; padding:10px; background:#f9fafb; }
+    .status-title{ font-weight:700; font-size:1.02rem; }
+    .status-text{ margin-top:4px; color:var(--muted); font-size:.92rem; line-height:1.25; }
+    .status-metrics{ margin-top:6px; font-size:.85rem; color:var(--muted); }
+    .status-green{ background:var(--greenbg); border-color:#bbf7d0; }
+    .status-amber{ background:var(--amberbg); border-color:#fde68a; }
+    .status-red{ background:var(--redbg); border-color:#fecaca; }
+    .status-neutral{ background:#f3f4f6; border-color:var(--border); }
+
     @media (max-width: 650px){
       .actions{ justify-content:stretch; }
       button{ width:100%; }
@@ -104,12 +113,12 @@
         <div class="col">
           <label for="cc">CC</label>
           <input id="cc" type="text" inputmode="decimal" placeholder="">
-          <div id="ccHint" class="small derived">Moyenne (contexte): —</div>
+          <div id="ccHint" class="small">Moyenne (contexte): —</div>
         </div>
         <div class="col">
           <label for="bpm">BPM</label>
           <input id="bpm" type="number" step="1" min="0" placeholder="">
-          <div id="bpmHint" class="small derived">BPM médian (contexte): —</div>
+          <div id="bpmHint" class="small">BPM médian (contexte): —</div>
         </div>
       </div>
 
@@ -139,13 +148,13 @@
     <div class="chips">
       <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
       <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
-      <span class="chip">SYMPA/PARA via tes BPM (P26/P74 glissant, séparé matin/soir)</span>
+      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs médiane du contexte)</span>
     </div>
   </div>
 
   <div class="card">
     <h2 style="margin:0;">Graphes (plein largeur)</h2>
-    <p class="small">1) CC repos matin & soir + moyennes • 2) Δ (soir − matin) + moyenne • 3) Δ post-ex vs aprem actif.</p>
+    <p class="small">1) CC repos matin & soir • 2) Effet net jour (soir − matin) + moyenne 7j • 3) Δ post-ex vs aprem actif.</p>
 
     <div class="charts">
       <div class="chart-card">
@@ -153,8 +162,12 @@
         <canvas id="c1"></canvas>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ (soir − matin) + moyenne</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Effet net (soir − matin)</div>
         <canvas id="c2"></canvas>
+        <div id="g2Status" class="status status-neutral" style="margin-top:10px;">
+          <div class="status-title">🧭 Lecture du jour</div>
+          <div class="status-text">Ajoute quelques jours avec une mesure matin ET soir pour une lecture automatique.</div>
+        </div>
       </div>
       <div class="chart-card">
         <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ post-exercice (vs aprem actif)</div>
@@ -298,36 +311,10 @@
     return {label: unstable ? "OK (instable)" : "OK", badge:"b-green", code:0};
   }
 
-  function percentileOnRows(rows, p){
-    const vals = rows.map(r=>r.bpm).filter(v=>Number.isFinite(v));
-    return percentile(vals, p);
-  }
-
-  // SYMPA/PARA basé sur TES BPM (P26/P74 glissant) et séparé matin/soir
-  // - on calcule sur les 30 dernières mesures (du même contexte) qui ont un BPM
-  // - si moins de 8 valeurs, on n'affiche rien (pas assez stable)
-  function profileSNA(row, allData){
-    if(!row || row.bpm == null || !Number.isFinite(row.bpm)) return {label:"", detail:""};
-    const ctx = row.ctx;
-    if(ctx !== "matin_repos" && ctx !== "soir_repos") return {label:"", detail:""};
-
-    const pool = allData
-      .filter(r => r && r.ctx === ctx && Number.isFinite(r.bpm) && r.dt)
-      .sort((a,b)=> new Date(b.dt) - new Date(a.dt))
-      .slice(0, 30);
-
-    if(pool.length < 8) return {label:"", detail:""};
-
-    const p26 = percentileOnRows(pool, 0.26);
-    const p74 = percentileOnRows(pool, 0.74);
-    if(p26 == null || p74 == null) return {label:"", detail:""};
-
-    let label = "Zone intermédiaire";
-    if(row.bpm <= p26) label = "PARA";
-    else if(row.bpm >= p74) label = "SYMPA";
-
-    const detail = `Seuils ${ctx==="matin_repos"?"matin":"soir"}: P26=${Math.round(p26)} • P74=${Math.round(p74)} (n=${pool.length})`;
-    return {label, detail};
+  function profileSNA(row, st, zoneCode){
+    if(zoneCode !== 1 && zoneCode !== 2) return "";
+    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpm50 == null) return "";
+    return row.bpm > st.bpm50 ? "SYMPA" : "PARA";
   }
 
   // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
@@ -354,7 +341,7 @@
   // =======================
   // Rendu UI
   // =======================
-  function renderSummary(userData, stats, allData){
+  function renderSummary(userData, stats){
     const el = document.getElementById("summary");
     if(!userData.length){
       el.className = "empty";
@@ -364,9 +351,7 @@
     const last = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt))[0];
     const st = stats[last.ctx];
     const z = classify(last.cc, st);
-    const profObj = profileSNA(last, allData);
-    const prof = profObj.label;
-    const profDetail = profObj.detail;
+    const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
     const delta = deltaPostEx(last, userData);
     const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
 
@@ -388,7 +373,7 @@
         <div class="stat">
           <div class="k">Zone (calculée sur base+nouveau)</div>
           <div class="v"><span class="badge ${z.badge}">${z.label}</span>${prof ? ` <span class="badge b-type">${prof}</span>` : ""}</div>
-          <div class="small">${extra}${profDetail ? ` • <span class="muted">${profDetail}</span>` : ""}</div>
+          <div class="small">${extra}</div>
         </div>
       </div>
     `;
@@ -409,7 +394,7 @@
     root.innerHTML = `<div class="grid">${rows}</div>`;
   }
 
-  function renderHistory(userData, stats, allData){
+  function renderHistory(userData, stats){
     const el = document.getElementById("history");
     if(!userData.length){
       el.className = "empty";
@@ -423,16 +408,14 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>Activation</th><th>Δ post-ex</th><th>Note</th><th></th>
+            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>SYMPA/PARA</th><th>Δ post-ex</th><th>Note</th><th></th>
           </tr>
         </thead><tbody>
     `;
     for(const r of sorted){
       const st = stats[r.ctx];
       const z = classify(r.cc, st);
-      const profObj = profileSNA(r, allData);
-      const prof = profObj.label;
-      const profDetail = profObj.detail;
+      const prof = (z.code!=null) ? profileSNA(r, st, z.code) : "";
       const dlt = deltaPostEx(r, userData);
       html += `
         <tr>
@@ -440,7 +423,7 @@
           <td><span class="badge b-type">${CONTEXT_LABELS[r.ctx]}</span></td>
           <td><b>${fmtNum(r.cc)}</b> • ${r.bpm ?? "—"}</td>
           <td><span class="badge ${z.badge}">${z.label}</span></td>
-          <td>${prof ? `<span class="badge b-type" title="${escapeHtml(profDetail)}">${prof}</span>` : "—"}</td>
+          <td>${prof ? `<span class="badge b-type">${prof}</span>` : "—"}</td>
           <td>${r.ctx==="post_exercice" ? fmtDelta(dlt) : "—"}</td>
           <td class="muted">${r.note ? escapeHtml(r.note) : "—"}</td>
           <td><button class="danger" onclick="deleteRow('${r.id}')">Suppr.</button></td>
@@ -517,18 +500,15 @@
       return out;
     }
 
-    // Graphe 1: CC matin/soir + moyenne glissante matin (7j)
-    const g1_m_ma7 = movingAverage(g1_m, 7);
-
-    // Graphe 2: Δ = soir - matin + moyenne glissante (7j)
-    const g2_delta = days.map(d=>{
+    // Graphe 2: Effet net = soir - matin
+    const g2_effect = days.map(d=>{
       const m = byDay[d].matin_repos?.cc;
       const s = byDay[d].soir_repos?.cc;
       if(m==null || s==null) return null;
       if(!Number.isFinite(m) || !Number.isFinite(s)) return null;
       return s - m;
     });
-    const g2_delta_ma7 = movingAverage(g2_delta, 7);
+    const g2_effect_ma7 = movingAverage(g2_effect, 7);
 
     const g3 = days.map(d=>{
       const r = byDay[d].post_exercice; if(!r) return null;
@@ -615,32 +595,39 @@
 
     drawSeriesNulls("c1", [
       {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
-      {name:"Moy. matin 7j", values:g1_m_ma7, stroke:"#111827", fill:"#111827"},
       {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
     ], "CC");
 
     drawSeriesNulls("c2", [
-      {name:"Δ (soir - matin)", values:g2_delta, stroke:"#7c3aed", fill:"#7c3aed"},
-      {name:"Moy. Δ 7j", values:g2_delta_ma7, stroke:"#111827", fill:"#111827"},
+      {name:"Soir - Matin", values:g2_effect, stroke:"#7c3aed", fill:"#7c3aed"},
+      {name:"Moy. 7j", values:g2_effect_ma7, stroke:"#111827", fill:"#111827"},
+    ], "Effet net");
+
+    drawSeriesNulls("c3", [
+      {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
     ], "Δ CC");
 
-    // Ligne 0 (référence) sur le graphe Δ
+    // Ligne 0 (reference) sur le graphe Effet net
     try{
       const canvas = document.getElementById("c2");
       const ctx = canvas.getContext("2d");
       const w = canvas.getBoundingClientRect().width;
       const h = canvas.getBoundingClientRect().height;
+
       const vals = [];
-      for(const v of g2_delta){ if(v!=null && Number.isFinite(v)) vals.push(v); }
-      for(const v of g2_delta_ma7){ if(v!=null && Number.isFinite(v)) vals.push(v); }
+      for(const v of g2_effect){ if(v!=null && Number.isFinite(v)) vals.push(v); }
+      for(const v of g2_effect_ma7){ if(v!=null && Number.isFinite(v)) vals.push(v); }
+
       if(vals.length){
         let minY = Math.min(...vals), maxY = Math.max(...vals);
         const padY = (maxY-minY)*0.12 || 1;
         minY -= padY; maxY += padY;
+
         const pad = 44;
         const x0 = pad, x1 = w - 10, y0 = 10, y1 = h - 20;
         const t0 = (0 - minY) / (maxY - minY || 1);
         const yZero = y1 - (y1-y0)*t0;
+
         ctx.save();
         ctx.strokeStyle = "#9ca3af";
         ctx.setLineDash([6,4]);
@@ -653,9 +640,62 @@
       }
     }catch(e){}
 
-    drawSeriesNulls("c3, [
-      {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
-    ], "Δ CC");
+    // 1 phrase pour ton systeme nerveux (lecture du jour)
+    function meanRecent(values, win, endIdx){
+      let sum=0, n=0;
+      const start = Math.max(0, endIdx - win + 1);
+      for(let i=start;i<=endIdx;i++){
+        const v = values[i];
+        if(v!=null && Number.isFinite(v)) { sum += v; n++; }
+      }
+      return n ? (sum/n) : null;
+    }
+
+    function g2Reading(effect, ref){
+      if(effect == null || !Number.isFinite(effect) || ref == null || !Number.isFinite(ref)){
+        return {cls:"status-neutral", title:"🧭 Lecture du jour", text:"Pas assez de donnees stables pour une lecture (il faut plusieurs jours matin+soir)."};
+      }
+      const above0 = effect >= 0;
+      const aboveRef = effect >= ref;
+
+      if(above0 && aboveRef){
+        return {cls:"status-green", title:"🟢 Journee nourrissante", text:"Ton systeme se recharge et c'est meilleur que ta dynamique recente."};
+      }
+      if(!above0 && aboveRef){
+        return {cls:"status-amber", title:"🟡 Reconstruction en cours", text:"Ca a coute, mais c'est mieux que ta dynamique recente (tu vas dans le bon sens)."};
+      }
+      if(above0 && !aboveRef){
+        return {cls:"status-amber", title:"🟠 Journee correcte", text:"Pas de cout net, mais un peu en dessous de ta dynamique recente."};
+      }
+      return {cls:"status-red", title:"🔴 Journee couteuse", text:"Ton systeme est surcharge aujourd'hui (plus couteux que ta dynamique recente)."};
+    }
+
+    (function updateG2Status(){
+      const el = document.getElementById("g2Status");
+      if(!el) return;
+
+      // dernier jour disponible
+      let i = -1;
+      for(let k=g2_effect.length-1;k>=0;k--){
+        if(g2_effect[k]!=null && Number.isFinite(g2_effect[k])){ i = k; break; }
+      }
+      if(i < 0){
+        el.className = "status status-neutral";
+        el.innerHTML = '<div class="status-title">🧭 Lecture du jour</div><div class="status-text">Ajoute quelques jours avec une mesure matin ET soir pour une lecture automatique.</div>';
+        return;
+      }
+
+      const effect = g2_effect[i];
+      let ref = g2_effect_ma7[i];
+      if(ref==null || !Number.isFinite(ref)) ref = meanRecent(g2_effect, 7, i);
+
+      const r = g2Reading(effect, ref);
+      el.className = "status " + r.cls;
+      el.innerHTML = '<div class="status-title">' + r.title + '</div>' +
+        '<div class="status-text">' + r.text + '</div>' +
+        '<div class="status-metrics">Effet net: <b>' + fmtDelta(effect) + '</b> • Moy. 7j: <b>' + fmtDelta(ref) + '</b></div>';
+    })();
+
   }
 
   
@@ -677,8 +717,8 @@
     ccInput.placeholder = mean !== "—" ? mean : "";
     if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
 
-    if(ccHint) ccHint.textContent = `≈ ${mean} (moy.)  •  n=${st ? st.n : 0}`;
-    if(bpmHint) bpmHint.textContent = `≈ ${bpm50} (méd.)`;
+    if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
+    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
   }
 
 
@@ -751,9 +791,9 @@
     const allData = getAllDataForStats();
     const stats = statsByContext(allData);
 
-    renderSummary(userData, stats, allData);
+    renderSummary(userData, stats);
     renderStats(stats);
-    renderHistory(userData, stats, allData);
+    renderHistory(userData, stats);
     renderCharts(userData, stats);
     updateInputHints(stats);
   }
@@ -848,32 +888,5 @@
     });
   }
 </script>
-
-<script>
-(function restoreUserDataOnce(){
-  try {
-    const KEY = "cc_user_data_v1";
-    if (!localStorage.getItem(KEY)) {
-      const data = [{"id": "id_1767994423038_396e7678490638", "dt": "2026-01-09T22:17", "ctx": "soir_repos", "cc": 0.9, "bpm": 76, "note": "Premi\u00e8re fois"}, {"id": "id_1768250209269_7a4ae85e8bedb", "dt": "2026-01-12T10:37", "ctx": "soir_repos", "cc": 0.8, "bpm": 68, "note": ""}, {"id": "id_1768291088518_cca4a2760b442", "dt": "2026-01-13T08:57", "ctx": "matin_repos", "cc": 1.1, "bpm": 64, "note": ""}, {"id": "id_1768336558173_86b0afecf4c338", "dt": "2026-01-13T08:58", "ctx": "soir_repos", "cc": 0.8, "bpm": 87, "note": ""}, {"id": "id_1768368717187_8913745573e6c", "dt": "2026-01-14T06:30", "ctx": "matin_repos", "cc": 1.5, "bpm": 67, "note": ""}, {"id": "id_1768426847824_cbea56f7c24e", "dt": "2026-01-14T22:31", "ctx": "soir_repos", "cc": 1.1, "bpm": 92, "note": ""}, {"id": "id_1768457705943_4f2d8d63634d7", "dt": "2026-01-15T07:40", "ctx": "matin_repos", "cc": 1.4, "bpm": 62, "note": ""}, {"id": "id_1768511986405_a63594326ed71", "dt": "2026-01-15T22:15", "ctx": "soir_repos", "cc": 1, "bpm": 43, "note": ""}, {"id": "id_1768544182772_89107d4367d618", "dt": "2026-01-16T07:19", "ctx": "matin_repos", "cc": 1.5, "bpm": 64, "note": ""}, {"id": "id_1768598658626_36c9e5a5812198", "dt": "2026-01-16T22:23", "ctx": "soir_repos", "cc": 1.1, "bpm": 77, "note": ""}, {"id": "id_1768632376159_e1963e4522e4e8", "dt": "2026-01-17T07:46", "ctx": "matin_repos", "cc": 0.5, "bpm": 54, "note": ""}, {"id": "id_1768635219486_6267e4d4675f48", "dt": "2026-01-17T08:46", "ctx": "matin_repos", "cc": 0.7, "bpm": 68, "note": ""}, {"id": "id_1768645608712_8749167476e238", "dt": "2026-01-17T11:33", "ctx": "matin_repos", "cc": 0.7, "bpm": 85, "note": ""}, {"id": "id_1768683275487_b84f84cb7e6978", "dt": "2026-01-17T21:38", "ctx": "soir_repos", "cc": 0.6, "bpm": 78, "note": ""}, {"id": "id_1768722595153_a0fdf4c38779c", "dt": "2026-01-18T08:54", "ctx": "matin_repos", "cc": 1.6, "bpm": 66, "note": ""}, {"id": "id_1768773702329_9a46fe7c846f9", "dt": "2026-01-18T22:49", "ctx": "soir_repos", "cc": 1.4, "bpm": 69, "note": ""}, {"id": "id_1768804315448_550180a10e54d", "dt": "2026-01-19T07:17", "ctx": "matin_repos", "cc": 1.2, "bpm": 63, "note": ""}];
-      localStorage.setItem(KEY, JSON.stringify(data));
-    }
-  } catch(e){ console.error(e); }
-})();
-</script>
-<script>
-(function restoreFromExportOnce(){
-  try{
-    const KEY = "cc_user_data_v1";
-    if(localStorage.getItem(KEY)) return; // déjà restauré, on ne touche plus
-
-    // >>> COLLER ICI TON EXPORT (userData) <<<
-    const userData = [{"id":"id_1767994423038_396e7678490638","dt":"2026-01-09T22:17","ctx":"soir_repos","cc":0.9,"bpm":76,"note":"Première fois"},{"id":"id_1768250209269_7a4ae85e8bedb","dt":"2026-01-12T10:37","ctx":"soir_repos","cc":0.8,"bpm":68,"note":""},{"id":"id_1768291088518_cca4a2760b442","dt":"2026-01-13T08:57","ctx":"matin_repos","cc":1.1,"bpm":64,"note":""},{"id":"id_1768336558173_86b0afecf4c338","dt":"2026-01-13T08:58","ctx":"soir_repos","cc":0.8,"bpm":87,"note":""},{"id":"id_1768368717187_8913745573e6c","dt":"2026-01-14T06:30","ctx":"matin_repos","cc":1.5,"bpm":67,"note":""},{"id":"id_1768426847824_cbea56f7c24e","dt":"2026-01-14T22:31","ctx":"soir_repos","cc":1.1,"bpm":92,"note":""},{"id":"id_1768457705943_4f2d8d63634d7","dt":"2026-01-15T07:40","ctx":"matin_repos","cc":1.4,"bpm":62,"note":""},{"id":"id_1768511986405_a63594326ed71","dt":"2026-01-15T22:15","ctx":"soir_repos","cc":1,"bpm":43,"note":""},{"id":"id_1768544182772_89107d4367d618","dt":"2026-01-16T07:19","ctx":"matin_repos","cc":1.5,"bpm":64,"note":""},{"id":"id_1768598658626_36c9e5a5812198","dt":"2026-01-16T22:23","ctx":"soir_repos","cc":1.1,"bpm":77,"note":""},{"id":"id_1768632376159_e1963e4522e4e8","dt":"2026-01-17T07:46","ctx":"matin_repos","cc":0.5,"bpm":54,"note":""},{"id":"id_1768635219486_6267e4d4675f48","dt":"2026-01-17T08:46","ctx":"matin_repos","cc":0.7,"bpm":68,"note":""},{"id":"id_1768645608712_8749167476e238","dt":"2026-01-17T11:33","ctx":"matin_repos","cc":0.7,"bpm":85,"note":""},{"id":"id_1768683275487_b84f84cb7e6978","dt":"2026-01-17T21:38","ctx":"soir_repos","cc":0.6,"bpm":78,"note":""},{"id":"id_1768722595153_a0fdf4c38779c","dt":"2026-01-18T08:54","ctx":"matin_repos","cc":1.6,"bpm":66,"note":""},{"id":"id_1768773702329_9a46fe7c846f9","dt":"2026-01-18T22:49","ctx":"soir_repos","cc":1.4,"bpm":69,"note":""},{"id":"id_1768804315448_550180a10e54d","dt":"2026-01-19T07:17","ctx":"matin_repos","cc":1.2,"bpm":63,"note":""}];
-
-    localStorage.setItem(KEY, JSON.stringify(userData));
-    console.log("Restauration OK:", userData.length);
-  }catch(e){
-    console.error("Restauration impossible", e);
-  }
-})();
-</script></body>
+</body>
 </html>
