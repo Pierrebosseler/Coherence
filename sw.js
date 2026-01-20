@@ -1,4 +1,4 @@
-const CACHE_NAME = "cc-pwa-v16";
+const CACHE_NAME = "cc-pwa-v6";
 const ASSETS = [
   "./",
   "./index.html",
