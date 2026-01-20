@@ -70,21 +70,83 @@
     .charts{ display:flex; flex-direction:column; gap:12px; margin-top:10px; }
     .chart-card{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; }
     canvas{ width:100%; height:360px; border:1px solid var(--border); border-radius:12px; background:#fff; }
-    /* Lecture systeme nerveux (graphe 2) */
-    .status{ border:1px solid var(--border); border-radius:12px; padding:10px; background:#f9fafb; }
-    .status-title{ font-weight:700; font-size:1.02rem; }
-    .status-text{ margin-top:4px; color:var(--muted); font-size:.92rem; line-height:1.25; }
-    .status-metrics{ margin-top:6px; font-size:.85rem; color:var(--muted); }
-    .status-green{ background:var(--greenbg); border-color:#bbf7d0; }
-    .status-amber{ background:var(--amberbg); border-color:#fde68a; }
-    .status-red{ background:var(--redbg); border-color:#fecaca; }
-    .status-neutral{ background:#f3f4f6; border-color:var(--border); }
-
     @media (max-width: 650px){
       .actions{ justify-content:stretch; }
       button{ width:100%; }
       canvas{ height:420px; }
     }
+/* Guidance */
+    .guide{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-top:10px; }
+    .guideCard{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; }
+    .guideTitle{ font-size:.78rem; color:var(--muted); font-weight:650; }
+    .guidePhrase{ margin-top:6px; font-size:1.05rem; font-weight:650; }
+    .guideMeta{ margin-top:6px; font-size:.85rem; color:var(--muted); }
+    .quad{ margin-top:8px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:6px; }
+    .qcell{ border:1px solid var(--border); border-radius:10px; padding:8px; font-size:.82rem; color:#374151; background:#fff; }
+    .qcell strong{ display:block; font-size:.75rem; color:var(--muted); margin-bottom:2px; }
+    .qcell.on{ outline:2px solid #111827; }
+    .qgood{ background:var(--greenbg); }
+    .qmid{ background:var(--amberbg); }
+    .qbad{ background:var(--redbg); }
+
+    /* Boussole 4-quadrants (plus lisible que les cases texte) */
+    .compassWrap{ margin-top:10px; }
+    .compassLegend{ display:flex; justify-content:space-between; gap:10px; font-size:.78rem; color:var(--muted); }
+    .compass{
+      position:relative;
+      width: 210px;
+      height: 210px;
+      margin: 10px auto 0;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+    }
+    .compassGrid{ display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; width:100%; height:100%; }
+    .cCell{ position:relative; padding:10px; border:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; gap:4px; }
+    .cEmoji{ font-size:1.35rem; line-height:1; }
+    .cText{ font-size:.82rem; font-weight:700; color:#374151; }
+    .cSub{ font-size:.72rem; color:var(--muted); }
+    .cTR{ background:var(--greenbg); }
+    .cBR{ background:#ecfeff; }
+    .cTL{ background:var(--amberbg); }
+    .cBL{ background:var(--redbg); }
+    .cActive{ outline:3px solid rgba(17,24,39,.35); outline-offset:-3px; }
+    .needle{
+      position:absolute;
+      left:50%; top:50%;
+      width:0; height:0;
+      transform-origin: 0% 0%;
+      pointer-events:none;
+    }
+    .needle::before{
+      content:"";
+      position:absolute;
+      left:-2px; top:-2px;
+      width:4px; height:4px;
+      border-radius:999px;
+      background:#111827;
+      box-shadow:0 0 0 6px rgba(17,24,39,.08);
+    }
+    .needle::after{
+      content:"";
+      position:absolute;
+      left:0; top:0;
+      width:0; height:0;
+      border-left: 8px solid #111827;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      transform: translate(6px,-5px);
+    }
+    .n0{ transform: translate(0,0) rotate(-45deg); } /* + & ≥ moy. (haut-droite) */
+    .n1{ transform: translate(0,0) rotate(45deg); }  /* + & < moy. (bas-droite) */
+    .n2{ transform: translate(0,0) rotate(-135deg);} /* - & ≥ moy. (haut-gauche) */
+    .n3{ transform: translate(0,0) rotate(135deg); } /* - & < moy. (bas-gauche) */
+
+    .compassHint{ margin-top:8px; font-size:.78rem; color:var(--muted); text-align:center; }
+
+
+
   </style>
 </head>
 <body>
@@ -148,13 +210,13 @@
     <div class="chips">
       <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
       <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
-      <span class="chip">SYMPA/PARA seulement si 🔴/🟠 (BPM vs P16/P84 glissant, par contexte)</span>
+      <span class="chip">Activation seulement si 🔴/🟠 (BPM ≤ P26 ⇒ PARA • BPM ≥ P84 ⇒ SYMPA • sinon INTER)</span>
     </div>
   </div>
 
   <div class="card">
     <h2 style="margin:0;">Graphes (plein largeur)</h2>
-    <p class="small">1) CC repos matin & soir • 2) Effet net jour (soir − matin) + moyenne 7j • 3) Δ post-ex vs aprem actif.</p>
+    <p class="small">1) CC repos matin & soir + moyenne lissée • 2) Effet net jour (soir − matin) + moyenne 7j • 3) Récupération nuit (matin − soir veille) + moyenne 7j.</p>
 
     <div class="charts">
       <div class="chart-card">
@@ -162,18 +224,20 @@
         <canvas id="c1"></canvas>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Effet net (soir − matin)</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Effet net jour (soir − matin) + moyenne 7j</div>
         <canvas id="c2"></canvas>
-        <div id="g2Status" class="status status-neutral" style="margin-top:10px;">
-          <div class="status-title">🧭 Lecture du jour</div>
-          <div class="status-text">Ajoute quelques jours avec une mesure matin ET soir pour une lecture automatique.</div>
-        </div>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ post-exercice (vs aprem actif)</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Récupération nuit (matin − soir veille) + moyenne 7j</div>
         <canvas id="c3"></canvas>
       </div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0;">Lecture & biofeedback</h2>
+    <p class="small">Une phrase simple + un repère 4-quadrants, calculés sur tes données récentes.</p>
+    <div id="guidance" class="empty" style="margin-top:8px;">Ajoute une mesure du matin (et idéalement du soir) pour activer la lecture.</div>
   </div>
 
   <div class="card">
@@ -295,6 +359,8 @@
         p50: percentile(ccs, 0.5),
         p75: percentile(ccs, 0.75),
         bpm50: percentile(bpms, 0.5),
+        bpmP26: percentile(bpms, 0.26),
+        bpmP84: percentile(bpms, 0.84),
       };
     }
     return out;
@@ -311,40 +377,14 @@
     return {label: unstable ? "OK (instable)" : "OK", badge:"b-green", code:0};
   }
 
-  // --- BPM percentiles glissants (activation)
-  // Règle: PARA si BPM <= P16 ; SYMPA si BPM >= P84 (P100-16)
-  // Calculé sur une fenêtre glissante (par contexte) des dernières valeurs BPM disponibles.
-  const BPM_WINDOW = 30;
-
-  function bpmThresholdsSliding(ctx, uptoIso, allData){
-    const uptoT = uptoIso ? new Date(uptoIso).getTime() : Infinity;
-    const rows = (allData || [])
-      .filter(r => r && r.ctx === ctx && Number.isFinite(r.bpm) && (new Date(r.dt).getTime() <= uptoT))
-      .sort((a,b)=> new Date(a.dt) - new Date(b.dt));
-    const tail = rows.slice(Math.max(0, rows.length - BPM_WINDOW));
-    const bpms = tail.map(r=>r.bpm).filter(v=>Number.isFinite(v));
-    if(bpms.length < MIN_CLASSIFY) return {p16:null, p84:null, n:bpms.length};
-    return {
-      p16: percentile(bpms, 0.16),
-      p84: percentile(bpms, 0.84),
-      n: bpms.length,
-    };
-  }
-
-  function profileSNA(row, zoneCode, allData){
-    // On affiche une info d'activation uniquement si CC BAS ou TRÈS BAS.
+  function profileSNA(row, st, zoneCode){
     if(zoneCode !== 1 && zoneCode !== 2) return "";
-    if(!row || row.bpm == null || !Number.isFinite(row.bpm)) return "";
-
-    const th = bpmThresholdsSliding(row.ctx, row.dt, allData);
-    if(th.p16 == null || th.p84 == null) return "";
-
-    if(row.bpm <= th.p16) return "PARA";
-    if(row.bpm >= th.p84) return "SYMPA";
-    // zone intermédiaire: on n'affiche rien pour éviter le bruit
-    return "";
+    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpmP26 == null || st?.bpmP84 == null) return "";
+    // Règle perso: PARA <= P26, SYMPA >= P84 (100-16), sinon zone intermédiaire.
+    if(row.bpm <= st.bpmP26) return "PARA";
+    if(row.bpm >= st.bpmP84) return "SYMPA";
+    return "INTER";
   }
-
 
   // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
   function deltaPostEx(row, userData){
@@ -370,7 +410,7 @@
   // =======================
   // Rendu UI
   // =======================
-  function renderSummary(userData, stats, allData){
+  function renderSummary(userData, stats){
     const el = document.getElementById("summary");
     if(!userData.length){
       el.className = "empty";
@@ -380,7 +420,7 @@
     const last = [...userData].sort((a,b)=> new Date(b.dt) - new Date(a.dt))[0];
     const st = stats[last.ctx];
     const z = classify(last.cc, st);
-    const prof = (z.code!=null) ? profileSNA(last, z.code, allData) : "";
+    const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
     const delta = deltaPostEx(last, userData);
     const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
 
@@ -416,14 +456,14 @@
         <div class="stat">
           <div class="k">${CONTEXT_LABELS[ctx]} — n=${s.n}</div>
           <div class="v">P16,18: ${fmtNum(s.p1618)} • P26,18: ${fmtNum(s.p2618)}</div>
-          <div class="small">Moy.: ${fmtNum(s.mean)} • P50: ${fmtNum(s.p50)} • P75: ${fmtNum(s.p75)} • BPM méd.: ${s.bpm50!=null?Math.round(s.bpm50):"—"}</div>
+          <div class="small">Moy.: ${fmtNum(s.mean)} • P50: ${fmtNum(s.p50)} • P75: ${fmtNum(s.p75)} • BPM: P26 ${s.bpmP26!=null?Math.round(s.bpmP26):"—"} • P50 ${s.bpm50!=null?Math.round(s.bpm50):"—"} • P84 ${s.bpmP84!=null?Math.round(s.bpmP84):"—"}</div>
         </div>
       `;
     }).join("");
     root.innerHTML = `<div class="grid">${rows}</div>`;
   }
 
-  function renderHistory(userData, stats, allData){
+  function renderHistory(userData, stats){
     const el = document.getElementById("history");
     if(!userData.length){
       el.className = "empty";
@@ -444,7 +484,7 @@
     for(const r of sorted){
       const st = stats[r.ctx];
       const z = classify(r.cc, st);
-      const prof = (z.code!=null) ? profileSNA(r, z.code, allData) : "";
+      const prof = (z.code!=null) ? profileSNA(r, st, z.code) : "";
       const dlt = deltaPostEx(r, userData);
       html += `
         <tr>
@@ -502,6 +542,7 @@
   }
 
   function renderCharts(userData, stats){
+    // 1 valeur par jour/contexte (la plus récente du jour)
     const byDay = {};
     for(const r of userData){
       const dk = dayKey(r.dt);
@@ -515,7 +556,6 @@
     const g1_m = days.map(d=> byDay[d].matin_repos?.cc ?? null);
     const g1_s = days.map(d=> byDay[d].soir_repos?.cc ?? null);
 
-    // Moyennes glissantes (par jour, sur les nouvelles mesures)
     function movingAverage(arr, win){
       const out = [];
       for(let i=0;i<arr.length;i++){
@@ -529,20 +569,29 @@
       return out;
     }
 
-    // Graphe 2: Effet net = soir - matin
-    const g2_effect = days.map(d=>{
+    // Graphe 1: moyenne matin lissée (7 jours)
+    const g1_m_ma7 = movingAverage(g1_m, 7);
+
+    // Graphe 2 (Jour): Effet net = soir - matin
+    const g2_day = days.map(d=>{
       const m = byDay[d].matin_repos?.cc;
       const s = byDay[d].soir_repos?.cc;
       if(m==null || s==null) return null;
       if(!Number.isFinite(m) || !Number.isFinite(s)) return null;
       return s - m;
     });
-    const g2_effect_ma7 = movingAverage(g2_effect, 7);
+    const g2_day_ma7 = movingAverage(g2_day, 7);
 
-    const g3 = days.map(d=>{
-      const r = byDay[d].post_exercice; if(!r) return null;
-      return deltaPostEx(r, userData);
+    // Graphe 3 (Nuit): Récupération = matin (jour J) - soir (jour J-1)
+    const g3_night = days.map((d, i)=>{
+      if(i===0) return null;
+      const m = byDay[days[i]]?.matin_repos?.cc;
+      const sPrev = byDay[days[i-1]]?.soir_repos?.cc;
+      if(m==null || sPrev==null) return null;
+      if(!Number.isFinite(m) || !Number.isFinite(sPrev)) return null;
+      return m - sPrev;
     });
+    const g3_night_ma7 = movingAverage(g3_night, 7);
 
     function drawSeriesNulls(canvasId, seriesList, yLabel, fixedMinMax=null){
       const canvas = document.getElementById(canvasId);
@@ -624,110 +673,296 @@
 
     drawSeriesNulls("c1", [
       {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
+      {name:"Moy. matin 7j", values:g1_m_ma7, stroke:"#111827", fill:"#111827"},
       {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
     ], "CC");
 
     drawSeriesNulls("c2", [
-      {name:"Soir - Matin", values:g2_effect, stroke:"#7c3aed", fill:"#7c3aed"},
-      {name:"Moy. 7j", values:g2_effect_ma7, stroke:"#111827", fill:"#111827"},
-    ], "Effet net");
-
-    drawSeriesNulls("c3", [
-      {name:"Δ post-ex", values:g3, stroke:"#7c3aed", fill:"#7c3aed"},
+      {name:"Jour (soir - matin)", values:g2_day, stroke:"#7c3aed", fill:"#7c3aed"},
+      {name:"Moy. jour 7j", values:g2_day_ma7, stroke:"#111827", fill:"#111827"},
     ], "Δ CC");
 
-    // Ligne 0 (reference) sur le graphe Effet net
-    try{
-      const canvas = document.getElementById("c2");
-      const ctx = canvas.getContext("2d");
-      const w = canvas.getBoundingClientRect().width;
-      const h = canvas.getBoundingClientRect().height;
-
-      const vals = [];
-      for(const v of g2_effect){ if(v!=null && Number.isFinite(v)) vals.push(v); }
-      for(const v of g2_effect_ma7){ if(v!=null && Number.isFinite(v)) vals.push(v); }
-
-      if(vals.length){
-        let minY = Math.min(...vals), maxY = Math.max(...vals);
-        const padY = (maxY-minY)*0.12 || 1;
-        minY -= padY; maxY += padY;
-
-        const pad = 44;
-        const x0 = pad, x1 = w - 10, y0 = 10, y1 = h - 20;
-        const t0 = (0 - minY) / (maxY - minY || 1);
-        const yZero = y1 - (y1-y0)*t0;
-
-        ctx.save();
-        ctx.strokeStyle = "#9ca3af";
-        ctx.setLineDash([6,4]);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x0, yZero);
-        ctx.lineTo(x1, yZero);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }catch(e){}
-
-    // 1 phrase pour ton systeme nerveux (lecture du jour)
-    function meanRecent(values, win, endIdx){
-      let sum=0, n=0;
-      const start = Math.max(0, endIdx - win + 1);
-      for(let i=start;i<=endIdx;i++){
-        const v = values[i];
-        if(v!=null && Number.isFinite(v)) { sum += v; n++; }
-      }
-      return n ? (sum/n) : null;
-    }
-
-    function g2Reading(effect, ref){
-      if(effect == null || !Number.isFinite(effect) || ref == null || !Number.isFinite(ref)){
-        return {cls:"status-neutral", title:"🧭 Lecture du jour", text:"Pas assez de donnees stables pour une lecture (il faut plusieurs jours matin+soir)."};
-      }
-      const above0 = effect >= 0;
-      const aboveRef = effect >= ref;
-
-      if(above0 && aboveRef){
-        return {cls:"status-green", title:"🟢 Journee nourrissante", text:"Ton systeme se recharge et c'est meilleur que ta dynamique recente."};
-      }
-      if(!above0 && aboveRef){
-        return {cls:"status-amber", title:"🟡 Reconstruction en cours", text:"Ca a coute, mais c'est mieux que ta dynamique recente (tu vas dans le bon sens)."};
-      }
-      if(above0 && !aboveRef){
-        return {cls:"status-amber", title:"🟠 Journee correcte", text:"Pas de cout net, mais un peu en dessous de ta dynamique recente."};
-      }
-      return {cls:"status-red", title:"🔴 Journee couteuse", text:"Ton systeme est surcharge aujourd'hui (plus couteux que ta dynamique recente)."};
-    }
-
-    (function updateG2Status(){
-      const el = document.getElementById("g2Status");
-      if(!el) return;
-
-      // dernier jour disponible
-      let i = -1;
-      for(let k=g2_effect.length-1;k>=0;k--){
-        if(g2_effect[k]!=null && Number.isFinite(g2_effect[k])){ i = k; break; }
-      }
-      if(i < 0){
-        el.className = "status status-neutral";
-        el.innerHTML = '<div class="status-title">🧭 Lecture du jour</div><div class="status-text">Ajoute quelques jours avec une mesure matin ET soir pour une lecture automatique.</div>';
-        return;
-      }
-
-      const effect = g2_effect[i];
-      let ref = g2_effect_ma7[i];
-      if(ref==null || !Number.isFinite(ref)) ref = meanRecent(g2_effect, 7, i);
-
-      const r = g2Reading(effect, ref);
-      el.className = "status " + r.cls;
-      el.innerHTML = '<div class="status-title">' + r.title + '</div>' +
-        '<div class="status-text">' + r.text + '</div>' +
-        '<div class="status-metrics">Effet net: <b>' + fmtDelta(effect) + '</b> • Moy. 7j: <b>' + fmtDelta(ref) + '</b></div>';
-    })();
-
+    drawSeriesNulls("c3", [
+      {name:"Nuit (matin - soir veille)", values:g3_night, stroke:"#2563eb", fill:"#2563eb"},
+      {name:"Moy. nuit 7j", values:g3_night_ma7, stroke:"#111827", fill:"#111827"},
+    ], "Δ CC");
   }
 
   
+// =======================
+  // Guidance (phrases + quadrants + alignment)
+  // =======================
+  function mean(arr){
+    const xs = arr.filter(v => v!=null && Number.isFinite(v));
+    if(!xs.length) return null;
+    return xs.reduce((a,b)=>a+b,0)/xs.length;
+  }
+
+  function meanPrevWindow(arr, i, win){
+    const xs = [];
+    for(let j=i-1; j>=0 && xs.length<win; j--){
+      const v = arr[j];
+      if(v!=null && Number.isFinite(v)) xs.push(v);
+    }
+    if(!xs.length) return null;
+    return xs.reduce((a,b)=>a+b,0)/xs.length;
+  }
+
+  function g1StateForMorning(mRow, stats, byDay, days, i){
+    if(!mRow || mRow.cc==null) return {state:"—", label:"—", color:"b-type"};
+
+    // 1) Zone (TRÈS BAS / BAS / OK) via percentiles par contexte
+    const st = stats?.matin_repos;
+    const z = classify(mRow.cc, st);
+
+    // 2) Moyenne lissée (7j) sur CC matin (uniquement nouvelles mesures)
+    const mVals = days.map((d, idx)=> byDay[d].matin_repos?.cc ?? null);
+    const avgPrev = meanPrevWindow(mVals, i, 7);
+
+    // 3) Mapping en 4 états (sol)
+    if(z.code === 2) return {state:"bloc", label:"Bloc / gel", color:"b-red"};
+    if(z.code === 1) return {state:"fragile", label:"Base fragile", color:"b-amber"};
+
+    // OK : on distingue "bonne" vs "moyenne" via moyenne glissante
+    if(avgPrev == null) return {state:"moyenne", label:"Base moyenne", color:"b-type"};
+    if(mRow.cc >= avgPrev) return {state:"bonne", label:"Bonne base", color:"b-green"};
+    return {state:"moyenne", label:"Base moyenne", color:"b-type"};
+  }
+
+  function quadrantLabel(kind, val, avgPrev){
+    // kind: 'day' or 'night'
+    if(val == null || !Number.isFinite(val)) return {label:"—", short:"—", cls:"qcell"};
+    const pos = val >= 0;
+    const hasAvg = avgPrev!=null && Number.isFinite(avgPrev);
+    const above = hasAvg ? (val >= avgPrev) : null;
+
+    if(kind === "day"){
+      // 4 quadrants = signe + vs moyenne
+      if(pos && (above === true || above === null)) return {label:"Nourrissante", short:"+ / ≥ moy.", cls:"qcell qgood"};
+      if(pos && above === false) return {label:"Stable", short:"+ / < moy.", cls:"qcell qmid"};
+      if(!pos && (above === true || above === null)) return {label:"Exigeante mais gérée", short:"- / ≥ moy.", cls:"qcell qmid"};
+      return {label:"Trop coûteuse", short:"- / < moy.", cls:"qcell qbad"};
+    }
+
+    // night
+    if(pos && (above === true || above === null)) return {label:"Réparatrice", short:"+ / ≥ moy.", cls:"qcell qgood"};
+    if(pos && above === false) return {label:"Aidante", short:"+ / < moy.", cls:"qcell qmid"};
+    if(!pos && (above === true || above === null)) return {label:"Insuffisante", short:"- / ≥ moy.", cls:"qcell qmid"};
+    return {label:"Coûteuse", short:"- / < moy.", cls:"qcell qbad"};
+  }
+
+  function outcome2(val, avgPrev){
+    // favorable/defavorable en version neuro-safe
+    if(val == null || !Number.isFinite(val)) return null;
+    if(avgPrev!=null && Number.isFinite(avgPrev)) return (val >= avgPrev) ? "fav" : "def";
+    return val >= 0 ? "fav" : "def";
+  }
+
+  const PHRASES_DAY = {
+    bloc:   { fav:"Bloc : tu as protégé. Journée tenue.", def:"Bloc : journée trop coûteuse. Priorité sécurité." },
+    fragile:{ fav:"Fragile : bonne protection. Journée gérable.", def:"Fragile : surcharge. Demain on protège." },
+    moyenne:{ fav:"Base moyenne : bon dosage aujourd’hui.", def:"Base moyenne : journée exigeante. Ajuste demain." },
+    bonne:  { fav:"Bonne base : tu as consolidé.", def:"Bonne base : coût inhabituel. Surveille fatigue." },
+  };
+
+  const PHRASES_NIGHT = {
+    bloc:   { fav:"Bloc : la nuit aide un peu (c’est précieux).", def:"Bloc : nuit difficile. On ralentit." },
+    fragile:{ fav:"Fragile : la nuit a aidé. Aujourd’hui on dose.", def:"Fragile : nuit insuffisante. Protection." },
+    moyenne:{ fav:"Base moyenne : nuit aidante. Journée à doser.", def:"Base moyenne : nuit agitée. Reste souple." },
+    bonne:  { fav:"Bonne base : nuit réparatrice. Tu peux oser.", def:"Bonne base : nuit moyenne. Dose intelligemment." },
+  };
+
+  function intentionFromMorning(g1State, nightOutcome){
+    if(g1State === "bloc") return {key:"prot", text:"Aujourd’hui : on protège."};
+    if(g1State === "fragile") return {key:"prot", text:"Aujourd’hui : on protège."};
+    if(g1State === "bonne" && nightOutcome === "fav") return {key:"ose", text:"Aujourd’hui : tu peux oser."};
+    if(g1State === "bonne" && nightOutcome === "def") return {key:"dose", text:"Aujourd’hui : tu doses."};
+    if(g1State === "moyenne" && nightOutcome === "fav") return {key:"dose", text:"Aujourd’hui : tu doses."};
+    return {key:"prot", text:"Aujourd’hui : on protège."};
+  }
+
+  function alignmentFrom(intentionKey, dayQuadrantLabel, dayVal){
+    // 4 possibilités
+    const tooCostly = dayQuadrantLabel === "Trop coûteuse";
+    const okOrBetter = !tooCostly;
+    const improved = (dayVal!=null && Number.isFinite(dayVal) && dayVal >= 0);
+
+    if(intentionKey === "ose"){
+      if(tooCostly) return {key:"non", badge:"b-red", text:"Non aligné", detail:"Tu as dépassé ce que le corps pouvait encaisser."};
+      if(improved) return {key:"ap", badge:"b-green", text:"Aligné positif", detail:"Tu as osé et le corps a suivi."};
+      return {key:"part", badge:"b-amber", text:"Partiellement aligné", detail:"Globalement cohérent, avec un peu de friction."};
+    }
+
+    // prot or dose
+    if(tooCostly) return {key:"non", badge:"b-red", text:"Non aligné", detail:"Journée trop coûteuse pour le terrain du matin."};
+    if(improved) return {key:"prot", badge:"b-green", text:"Aligné protecteur", detail:"Tu as protégé et le corps s’est réparé."};
+    return {key:"part", badge:"b-amber", text:"Partiellement aligné", detail:"Plutôt juste, sans gain clair."};
+  }
+
+  function compassHTML(activeIdx, label){
+    if(activeIdx == null) return "";
+    // idx 0..3 -> [pos&above, pos&below, neg&above, neg&below]
+    // Emojis = ancrages rapides (nerveux-friendly)
+    const cellClass = (i)=> (i===0?"cTR": i===1?"cBR": i===2?"cTL":"cBL") + (i===activeIdx?" cActive":"");
+    const needleClass = (i)=> (i===0?"n0": i===1?"n1": i===2?"n2":"n3");
+
+    return `
+      <div class="compassWrap">
+        <div class="compassLegend">
+          <span>⬅️ Coûteux</span>
+          <span>${escapeHtml(label||"Boussole")}</span>
+          <span>Réparateur ➡️</span>
+        </div>
+        <div class="compass" aria-label="Boussole 4 quadrants">
+          <div class="compassGrid">
+            <div class="cCell ${cellClass(2)}">
+              <div class="cEmoji">🧸</div>
+              <div class="cText">Protège</div>
+              <div class="cSub">- &ge; moy.</div>
+            </div>
+            <div class="cCell ${cellClass(0)}">
+              <div class="cEmoji">🍀</div>
+              <div class="cText">Ose</div>
+              <div class="cSub">+ &ge; moy.</div>
+            </div>
+            <div class="cCell ${cellClass(3)}">
+              <div class="cEmoji">⚖️</div>
+              <div class="cText">Dose</div>
+              <div class="cSub">- &lt; moy.</div>
+            </div>
+            <div class="cCell ${cellClass(1)}">
+              <div class="cEmoji">🌱</div>
+              <div class="cText">Doux</div>
+              <div class="cSub">+ &lt; moy.</div>
+            </div>
+          </div>
+          <div class="needle ${needleClass(activeIdx)}"></div>
+        </div>
+        <div class="compassHint">↑ plus fort que d’habitude • ↓ plus doux</div>
+      </div>
+    `;
+  }
+
+  function quadrantIndex(kind, val, avgPrev){
+    if(val == null || !Number.isFinite(val)) return null;
+    const pos = val >= 0;
+    const hasAvg = avgPrev!=null && Number.isFinite(avgPrev);
+    const above = hasAvg ? (val >= avgPrev) : true;
+    if(pos && above) return 0;
+    if(pos && !above) return 1;
+    if(!pos && above) return 2;
+    return 3;
+  }
+
+  function renderGuidance(userData, stats){
+    const root = document.getElementById("guidance");
+    if(root) root.className = "";
+    if(!root) return;
+
+    // Build byDay (latest per ctx)
+    const byDay = {};
+    for(const r of userData){
+      const dk = dayKey(r.dt);
+      if(!dk) continue;
+      if(!byDay[dk]) byDay[dk] = {};
+      const prev = byDay[dk][r.ctx];
+      if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
+    }
+    const days = Object.keys(byDay).sort();
+    if(!days.length){
+      root.innerHTML = "";
+      return;
+    }
+
+    // Arrays for deltas
+    const deltaDay = days.map(d=>{
+      const m = byDay[d].matin_repos; const s = byDay[d].soir_repos;
+      if(m && s && Number.isFinite(m.cc) && Number.isFinite(s.cc)) return s.cc - m.cc;
+      return null;
+    });
+    const deltaNight = days.map((d, i)=>{
+      const m = byDay[d].matin_repos;
+      if(!m || !Number.isFinite(m.cc)) return null;
+      const prevDay = days[i-1];
+      if(!prevDay) return null;
+      const prevS = byDay[prevDay].soir_repos;
+      if(!prevS || !Number.isFinite(prevS.cc)) return null;
+      return m.cc - prevS.cc;
+    });
+
+    // Pick latest day with a morning measurement
+    let i = days.length - 1;
+    while(i>=0 && !(byDay[days[i]].matin_repos && Number.isFinite(byDay[days[i]].matin_repos.cc))) i--;
+    if(i<0){ root.innerHTML = ""; return; }
+
+    const d = days[i];
+    const mRow = byDay[d].matin_repos || null;
+    const sRow = byDay[d].soir_repos || null;
+
+    const avgDayPrev = meanPrevWindow(deltaDay, i, 7);
+    const avgNightPrev = meanPrevWindow(deltaNight, i, 7);
+
+    const qDay = quadrantLabel("day", deltaDay[i], avgDayPrev);
+    const qNight = quadrantLabel("night", deltaNight[i], avgNightPrev);
+
+    const g1 = g1StateForMorning(mRow, stats, byDay, days, i);
+    const nightOut = outcome2(deltaNight[i], avgNightPrev);
+    const dayOut = outcome2(deltaDay[i], avgDayPrev);
+
+    const nightPhrase = PHRASES_NIGHT[g1.state]?.[nightOut || "def"] || "—";
+    const dayPhrase = PHRASES_DAY[g1.state]?.[dayOut || "def"] || "—";
+
+    const intention = intentionFromMorning(g1.state, nightOut);
+
+    let alignment = null;
+    if(sRow && Number.isFinite(deltaDay[i])){
+      alignment = alignmentFrom(intention.key, qDay.label, deltaDay[i]);
+    }
+
+    const di = quadrantIndex("day", deltaDay[i], avgDayPrev);
+    const ni = quadrantIndex("night", deltaNight[i], avgNightPrev);
+
+    const dayValTxt = deltaDay[i]!=null ? fmtDelta(deltaDay[i]) : "—";
+    const nightValTxt = deltaNight[i]!=null ? fmtDelta(deltaNight[i]) : "—";
+
+    const alignmentHTML = alignment ? `
+      <div class="guideCard">
+        <div class="guideTitle">Alignement (jour ${d.slice(5)})</div>
+        <div class="guidePhrase"><span class="badge ${alignment.badge}">${alignment.text}</span></div>
+        <div class="guideMeta">${escapeHtml(alignment.detail)}</div>
+      </div>
+    ` : `
+      <div class="guideCard">
+        <div class="guideTitle">Alignement (jour ${d.slice(5)})</div>
+        <div class="guidePhrase"><span class="badge b-amber">En attente</span></div>
+        <div class="guideMeta">Il faut une mesure matin + soir pour ce jour.</div>
+      </div>
+    `;
+
+    root.innerHTML = `
+      <div class="guide">
+        <div class="guideCard">
+          <div class="guideTitle">Matin ${d.slice(5)} — ${g1.label}</div>
+          <div class="guidePhrase">${escapeHtml(intention.text)}</div>
+          <div class="guideMeta">Nuit: <b>${escapeHtml(qNight.label)}</b> (${nightValTxt})${avgNightPrev!=null?` • moy7j≈${fmtNum(avgNightPrev)}`:""}</div>
+          <div class="guideMeta">${escapeHtml(nightPhrase)}</div>
+          ${ni!=null ? compassHTML(ni, "Boussole nuit") : ""}
+        </div>
+
+        <div class="guideCard">
+          <div class="guideTitle">Soir ${d.slice(5)}</div>
+          <div class="guidePhrase"><b>${escapeHtml(qDay.label)}</b></div>
+          <div class="guideMeta">Jour: ${dayValTxt}${avgDayPrev!=null?` • moy7j≈${fmtNum(avgDayPrev)}`:""}</div>
+          <div class="guideMeta">${escapeHtml(dayPhrase)}</div>
+          ${di!=null ? compassHTML(di, "Boussole jour") : ""}
+        </div>
+
+        ${alignmentHTML}
+      </div>
+    `;
+  }
+
+
   function updateInputHints(stats){
     const ctxSel = document.getElementById("ctx");
     const ccInput = document.getElementById("cc");
@@ -747,12 +982,7 @@
     if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
 
     if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
-    if(bpmHint){
-      const th = bpmThresholdsSliding(ctx, null, getAllDataForStats());
-      const p16 = th.p16!=null ? String(Math.round(th.p16)) : "—";
-      const p84 = th.p84!=null ? String(Math.round(th.p84)) : "—";
-      bpmHint.textContent = `BPM médian (contexte): ${bpm50}  •  P16/P84: ${p16}/${p84}`;
-    }
+    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
   }
 
 
@@ -812,12 +1042,52 @@
   // =======================
   // Actions
   // =======================
-  function initDateTime(){
-    const dt = document.getElementById("dt");
+  // Date/heure et contexte: auto quand tu ouvres/reviens dans l'app,
+  // sans écraser une valeur que tu as modifiée à la main.
+  let _dtTouched = false;
+  let _ctxTouched = false;
+  let _lastAutoDT = "";
+
+  function pad2(n){ return String(n).padStart(2,"0"); }
+  function nowDTLocalString(){
     const now = new Date();
-    const pad = n => String(n).padStart(2,"0");
-    const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    dt.value = val;
+    return `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  }
+
+  function suggestContextFromHour(h){
+    // Heuristique simple (modifiable plus tard)
+    // 05-10 => matin repos, 10-19 => aprem actif, 19-02 => soir repos
+    if(h >= 5 && h < 10) return "matin_repos";
+    if(h >= 19 || h < 2) return "soir_repos";
+    return "aprem_actif";
+  }
+
+  function autoFillDateTime(force=false){
+    const dt = document.getElementById("dt");
+    if(!dt) return;
+    const val = nowDTLocalString();
+    if(force || (!_dtTouched && (!dt.value || dt.value === _lastAutoDT))){
+      dt.value = val;
+      _lastAutoDT = val;
+    }
+  }
+
+  function autoSuggestContext(force=false){
+    const ctxSel = document.getElementById("ctx");
+    if(!ctxSel) return;
+    const h = new Date().getHours();
+    const suggested = suggestContextFromHour(h);
+    if(force || (!_ctxTouched && ctxSel.value !== suggested)){
+      ctxSel.value = suggested;
+    }
+  }
+
+  function initDateTime(){
+    // Appelé au chargement et après submit/reset
+    _dtTouched = false;
+    _ctxTouched = false;
+    autoFillDateTime(true);
+    autoSuggestContext(false);
   }
 
   function refresh(){
@@ -825,10 +1095,11 @@
     const allData = getAllDataForStats();
     const stats = statsByContext(allData);
 
-    renderSummary(userData, stats, allData);
+    renderSummary(userData, stats);
     renderStats(stats);
-    renderHistory(userData, stats, allData);
+    renderHistory(userData, stats);
     renderCharts(userData, stats);
+    renderGuidance(userData, stats);
     updateInputHints(stats);
   }
 
@@ -859,10 +1130,25 @@
   window.addEventListener("DOMContentLoaded", () => {
     initDateTime();
     refresh();
+    // Quand tu reviens dans l'app (Android/Chrome), on rafraîchit l'heure proposée
+    // sans écraser si tu avais déjà modifié à la main.
+    const onReturn = () => { autoFillDateTime(false); autoSuggestContext(false); };
+    window.addEventListener("focus", onReturn, {passive:true});
+    window.addEventListener("pageshow", onReturn, {passive:true});
+    document.addEventListener("visibilitychange", ()=>{
+      if(!document.hidden) onReturn();
+    }, {passive:true});
     window.addEventListener("resize", ()=> refresh(), {passive:true});
+
+    const dtInput = document.getElementById("dt");
+    if(dtInput){
+      dtInput.addEventListener("input", ()=>{ _dtTouched = true; });
+      dtInput.addEventListener("change", ()=>{ _dtTouched = true; });
+    }
 
     const ctxSel = document.getElementById("ctx");
     ctxSel.addEventListener("change", ()=>{
+      _ctxTouched = true;
       const allData = getAllDataForStats();
       const stats = statsByContext(allData);
       updateInputHints(stats);
