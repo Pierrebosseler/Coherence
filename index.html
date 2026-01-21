@@ -855,204 +855,86 @@
   }
 
   function renderGuidance(userData, stats){
-    const root = document.getElementById("guidance");
-    if(root) root.className = "";
-    if(!root) return;
+  const root = document.getElementById("guidance");
+  if(!root) return;
+  if(root) root.className = "";
 
-    // Build byDay (latest per ctx)
-    const byDay = {};
-    for(const r of userData){
-      const dk = dayKey(r.dt);
-      if(!dk) continue;
-      if(!byDay[dk]) byDay[dk] = {};
-      const prev = byDay[dk][r.ctx];
-      if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
-    }
-    const days = Object.keys(byDay).sort();
-    if(!days.length){
-      root.innerHTML = "";
-      return;
-    }
+  // Build byDay (latest per ctx)
+  const byDay = {};
+  for(const r of userData){
+    const dk = dayKey(r.dt);
+    if(!dk) continue;
+    if(!byDay[dk]) byDay[dk] = {};
+    const prev = byDay[dk][r.ctx];
+    if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
+  }
+  const days = Object.keys(byDay).sort();
+  if(!days.length){
+    root.innerHTML = `<div class="empty">Ajoute une mesure du matin (et idéalement du soir de la veille) pour activer la lecture.</div>`;
+    return;
+  }
 
-    // Arrays for deltas
-    const deltaDay = days.map(d=>{
-      const m = byDay[d].matin_repos; const s = byDay[d].soir_repos;
-      if(m && s && Number.isFinite(m.cc) && Number.isFinite(s.cc)) return s.cc - m.cc;
-      return null;
-    });
-    const deltaNight = days.map((d, i)=>{
-      const m = byDay[d].matin_repos;
-      if(!m || !Number.isFinite(m.cc)) return null;
-      const prevDay = days[i-1];
-      if(!prevDay) return null;
-      const prevS = byDay[prevDay].soir_repos;
-      if(!prevS || !Number.isFinite(prevS.cc)) return null;
-      return m.cc - prevS.cc;
-    });
+  // Δ Nuit = Matin(d) − Soir(d-1)
+  const deltaNight = days.map((d, i)=>{
+    const m = byDay[d].matin_repos;
+    if(!m || !Number.isFinite(m.cc)) return null;
+    const prevDay = days[i-1];
+    if(!prevDay) return null;
+    const prevS = byDay[prevDay].soir_repos;
+    if(!prevS || !Number.isFinite(prevS.cc)) return null;
+    return m.cc - prevS.cc;
+  });
 
-    // Pick latest day with a morning measurement
-    let i = days.length - 1;
-    while(i>=0 && !(byDay[days[i]].matin_repos && Number.isFinite(byDay[days[i]].matin_repos.cc))) i--;
-    if(i<0){ root.innerHTML = ""; return; }
+  // Pick latest day with a morning measurement
+  let i = days.length - 1;
+  while(i>=0 && !(byDay[days[i]].matin_repos && Number.isFinite(byDay[days[i]].matin_repos.cc))){
+    i--;
+  }
+  if(i < 0){
+    root.innerHTML = `<div class="empty">Ajoute une mesure du matin pour activer la lecture.</div>`;
+    return;
+  }
 
-    const d = days[i];
-    const mRow = byDay[d].matin_repos || null;
-    const sRow = byDay[d].soir_repos || null;
+  const d = days[i];
+  const mRow = byDay[d].matin_repos;
 
-    const avgDayPrev = meanPrevWindow(deltaDay, i, 7);
-    const avgNightPrev = meanPrevWindow(deltaNight, i, 7);
+  // Moyenne glissante (7j) du Δ Nuit (sur les valeurs précédentes)
+  const avgNightPrev = meanPrevWindow(deltaNight, i, 7);
 
-    const qDay = quadrantLabel("day", deltaDay[i], avgDayPrev);
-    const qNight = quadrantLabel("night", deltaNight[i], avgNightPrev);
+  // Base (G1) + zone du matin
+  const g1 = g1StateForMorning(mRow, stats, byDay, days, i);
 
-    const g1 = g1StateForMorning(mRow, stats, byDay, days, i);
-    const nightOut = outcome2(deltaNight[i], avgNightPrev);
-    const dayOut = outcome2(deltaDay[i], avgDayPrev);
+  // Lecture quadrants (NUIT uniquement)
+  const qNight = quadrantLabel("night", deltaNight[i], avgNightPrev);
+  const nightOut = outcome2(deltaNight[i], avgNightPrev);
+  const nightPhrase = PHRASES_NIGHT[g1.state]?.[nightOut || "def"] || "—";
+  const intention = intentionFromMorning(g1.state, nightOut);
 
-    const nightPhrase = PHRASES_NIGHT[g1.state]?.[nightOut || "def"] || "—";
-    const dayPhrase = PHRASES_DAY[g1.state]?.[dayOut || "def"] || "—";
+  const ni = quadrantIndex("night", deltaNight[i], avgNightPrev);
+  const nightValTxt = deltaNight[i]!=null ? fmtDelta(deltaNight[i]) : "—";
+  const avgTxt = avgNightPrev!=null ? fmtDelta(avgNightPrev) : "—";
 
-    const intention = intentionFromMorning(g1.state, nightOut);
+  const waiting = (deltaNight[i] == null || !Number.isFinite(deltaNight[i]));
 
-    let alignment = null;
-    if(sRow && Number.isFinite(deltaDay[i])){
-      alignment = alignmentFrom(intention.key, qDay.label, deltaDay[i]);
-    }
-
-    const di = quadrantIndex("day", deltaDay[i], avgDayPrev);
-    const ni = quadrantIndex("night", deltaNight[i], avgNightPrev);
-
-    const dayValTxt = deltaDay[i]!=null ? fmtDelta(deltaDay[i]) : "—";
-    const nightValTxt = deltaNight[i]!=null ? fmtDelta(deltaNight[i]) : "—";
-
-    const alignmentHTML = alignment ? `
+  root.innerHTML = `
+    <div class="guide">
       <div class="guideCard">
-        <div class="guideTitle">Alignement (jour ${d.slice(5)})</div>
-        <div class="guidePhrase"><span class="badge ${alignment.badge}">${alignment.text}</span></div>
-        <div class="guideMeta">${escapeHtml(alignment.detail)}</div>
-      </div>
-    ` : `
-      <div class="guideCard">
-        <div class="guideTitle">Alignement (jour ${d.slice(5)})</div>
-        <div class="guidePhrase"><span class="badge b-amber">En attente</span></div>
-        <div class="guideMeta">Il faut une mesure matin + soir pour ce jour.</div>
-      </div>
-    `;
-
-    root.innerHTML = `
-      <div class="guide">
-        <div class="guideCard">
-          <div class="guideTitle">Matin ${d.slice(5)} — ${g1.label}</div>
-          <div class="guidePhrase">${escapeHtml(intention.text)}</div>
-          <div class="guideMeta">Nuit: <b>${escapeHtml(qNight.label)}</b> (${nightValTxt})${avgNightPrev!=null?` • moy7j≈${fmtNum(avgNightPrev)}`:""}</div>
-          <div class="guideMeta">${escapeHtml(nightPhrase)}</div>
-          ${ni!=null ? compassHTML(ni, "Boussole nuit") : ""}
+        <div class="guideTitle">Matin ${d.slice(5)} — Lecture de nuit</div>
+        <div class="guidePhrase">${nightPhrase}</div>
+        <div class="guideMeta">
+          <span class="badge ${g1.color}">${g1.label}</span>
+          <span class="badge b-type" style="margin-left:6px;">${intention.emoji} ${intention.text}</span>
+          <div class="small" style="margin-top:6px;">
+            Δ Nuit (matin − soir veille) : <b>${nightValTxt}</b> • Moy. 7j : <b>${avgTxt}</b>
+          </div>
+          ${waiting ? `<div class="small">⚠️ Pour un Δ Nuit fiable, ajoute aussi une mesure “Soir – repos” la veille.</div>` : ``}
         </div>
-
-        <div class="guideCard">
-          <div class="guideTitle">Soir ${d.slice(5)}</div>
-          <div class="guidePhrase"><b>${escapeHtml(qDay.label)}</b></div>
-          <div class="guideMeta">Jour: ${dayValTxt}${avgDayPrev!=null?` • moy7j≈${fmtNum(avgDayPrev)}`:""}</div>
-          <div class="guideMeta">${escapeHtml(dayPhrase)}</div>
-          ${di!=null ? compassHTML(di, "Boussole jour") : ""}
-        </div>
-
-        ${alignmentHTML}
+        ${compassHTML(ni, "Boussole NUIT")}
+        <div class="small" style="margin-top:8px;">Quadrant : <b>${escapeHtml(qNight.label)}</b></div>
       </div>
-    `;
-  }
-
-
-  function updateInputHints(stats){
-    const ctxSel = document.getElementById("ctx");
-    const ccInput = document.getElementById("cc");
-    const bpmInput = document.getElementById("bpm");
-    const ccHint = document.getElementById("ccHint");
-    const bpmHint = document.getElementById("bpmHint");
-    if(!ctxSel || !ccInput) return;
-
-    const ctx = ctxSel.value;
-    const st = stats && stats[ctx] ? stats[ctx] : null;
-
-    const mean = st && Number.isFinite(st.mean) ? fmtNum(st.mean) : "—";
-    const bpm50 = st && Number.isFinite(st.bpm50) ? String(Math.round(st.bpm50)) : "—";
-
-    // Placeholders = valeur moyenne/médiane, pour comparer au moment de saisir
-    ccInput.placeholder = mean !== "—" ? mean : "";
-    if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
-
-    if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
-    if(bpmHint) bpmHint.textContent = `BPM médian (contexte): ${bpm50}`;
-  }
-
-
-// =======================
-  // Export/Import (uniquement nouvelles mesures)
-  // =======================
-  function download(filename, text){
-    const blob = new Blob([text], {type:"application/json;charset=utf-8"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  function exportJSON(){
-    const userData = loadUserData();
-    const payload = {
-      version: 3,
-      exportedAt: new Date().toISOString(),
-      userData,
-      baselineCount: getBaselineData().length
-    };
-    download("cc_user_export.json", JSON.stringify(payload, null, 2));
-  }
-
-  function importJSON(file){
-    const reader = new FileReader();
-    reader.onload = () => {
-      try{
-        const parsed = JSON.parse(reader.result);
-        const incoming = parsed.userData || parsed.data || parsed;
-        if(!Array.isArray(incoming)) throw new Error("bad");
-
-        const cleaned = incoming
-          .filter(x => x && typeof x === "object")
-          .map(x => ({
-            id: x.id || ("id_"+Date.now()+"_"+Math.random().toString(16).slice(2)),
-            dt: x.dt || x.datetime || "",
-            ctx: x.ctx || x.contexte || "matin_repos",
-            cc: Number.isFinite(x.cc) ? x.cc : parseCC(x.cc),
-            bpm: Number.isFinite(x.bpm) ? x.bpm : parseBPM(x.bpm),            note: x.note || ""
-          }))
-          .filter(x => x.dt && CONTEXT_LABELS[x.ctx] && Number.isFinite(x.cc));
-
-        if(!confirm(`Importer ${cleaned.length} nouvelles mesures et remplacer celles de ce navigateur ?`)) return;
-        saveUserData(cleaned);
-        refresh();
-        alert("Import terminé ✅");
-      }catch(e){
-        alert("Import impossible : fichier invalide.");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  // =======================
-  // Actions
-  // =======================
-  // Date/heure et contexte: auto quand tu ouvres/reviens dans l'app,
-  // sans écraser une valeur que tu as modifiée à la main.
-  let _dtTouched = false;
-  let _ctxTouched = false;
-  let _lastAutoDT = "";
-
-  function pad2(n){ return String(n).padStart(2,"0"); }
-  function nowDTLocalString(){
-    const now = new Date();
-    return `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-  }
+    </div>
+  `;
+}
 
   function suggestContextFromHour(h){
     // Heuristique simple (modifiable plus tard)
