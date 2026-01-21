@@ -1,8 +1,8 @@
-
-const CACHE_NAME = "cc-pwa-v5";
+const CACHE_NAME = "cc-pwa-v10";
 const ASSETS = [
   "./",
   "./index.html",
+  "./sw.js",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"
@@ -10,7 +10,9 @@ const ASSETS = [
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).catch(()=>{})
+  );
 });
 
 self.addEventListener("activate", (event) => {
@@ -24,10 +26,25 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.mode === "navigate") {
-    event.respondWith(fetch("./index.html").catch(() => caches.match("./index.html")));
+    event.respondWith(
+      fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy)).catch(()=>{});
+        return res;
+      }).catch(() => caches.match("./index.html"))
+    );
     return;
   }
   event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req))
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (req.method === "GET" && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(()=>{});
+        }
+        return res;
+      }).catch(() => cached);
+    })
   );
 });
