@@ -75,78 +75,6 @@
       button{ width:100%; }
       canvas{ height:420px; }
     }
-/* Guidance */
-    .guide{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-top:10px; }
-    .guideCard{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; }
-    .guideTitle{ font-size:.78rem; color:var(--muted); font-weight:650; }
-    .guidePhrase{ margin-top:6px; font-size:1.05rem; font-weight:650; }
-    .guideMeta{ margin-top:6px; font-size:.85rem; color:var(--muted); }
-    .quad{ margin-top:8px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:6px; }
-    .qcell{ border:1px solid var(--border); border-radius:10px; padding:8px; font-size:.82rem; color:#374151; background:#fff; }
-    .qcell strong{ display:block; font-size:.75rem; color:var(--muted); margin-bottom:2px; }
-    .qcell.on{ outline:2px solid #111827; }
-    .qgood{ background:var(--greenbg); }
-    .qmid{ background:var(--amberbg); }
-    .qbad{ background:var(--redbg); }
-
-    /* Boussole 4-quadrants (plus lisible que les cases texte) */
-    .compassWrap{ margin-top:10px; }
-    .compassLegend{ display:flex; justify-content:space-between; gap:10px; font-size:.78rem; color:var(--muted); }
-    .compass{
-      position:relative;
-      width: 210px;
-      height: 210px;
-      margin: 10px auto 0;
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:16px;
-      overflow:hidden;
-    }
-    .compassGrid{ display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; width:100%; height:100%; }
-    .cCell{ position:relative; padding:10px; border:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; gap:4px; }
-    .cEmoji{ font-size:1.35rem; line-height:1; }
-    .cText{ font-size:.82rem; font-weight:700; color:#374151; }
-    .cSub{ font-size:.72rem; color:var(--muted); }
-    .cTR{ background:var(--greenbg); }
-    .cBR{ background:#ecfeff; }
-    .cTL{ background:var(--amberbg); }
-    .cBL{ background:var(--redbg); }
-    .cActive{ outline:3px solid rgba(17,24,39,.35); outline-offset:-3px; }
-    .needle{
-      position:absolute;
-      left:50%; top:50%;
-      width:0; height:0;
-      transform-origin: 0% 0%;
-      pointer-events:none;
-    }
-    .needle::before{
-      content:"";
-      position:absolute;
-      left:-2px; top:-2px;
-      width:4px; height:4px;
-      border-radius:999px;
-      background:#111827;
-      box-shadow:0 0 0 6px rgba(17,24,39,.08);
-    }
-    .needle::after{
-      content:"";
-      position:absolute;
-      left:0; top:0;
-      width:0; height:0;
-      border-left: 8px solid #111827;
-      border-top: 5px solid transparent;
-      border-bottom: 5px solid transparent;
-      transform: translate(6px,-5px);
-    }
-    .n0{ transform: translate(0,0) rotate(-45deg); } /* + & ≥ moy. (haut-droite) */
-    .n1{ transform: translate(0,0) rotate(45deg); }  /* + & < moy. (bas-droite) */
-    .n2{ transform: translate(0,0) rotate(-135deg);} /* - & ≥ moy. (haut-gauche) */
-    .n3{ transform: translate(0,0) rotate(135deg); } /* - & < moy. (bas-gauche) */
-
-    .compassHint{ margin-top:8px; font-size:.78rem; color:var(--muted); text-align:center; }
-
-
-
   </style>
 </head>
 <body>
@@ -210,13 +138,13 @@
     <div class="chips">
       <span class="chip blue">Seuils recalculés automatiquement, par contexte.</span>
       <span class="chip">Zones : 🔴 &lt; P16,18 • 🟠 &lt; P26,18 • 🟢 ≥ P26,18</span>
-      <span class="chip">Activation seulement si 🔴/🟠 (BPM ≤ P26 ⇒ PARA • BPM ≥ P84 ⇒ SYMPA • sinon INTER)</span>
+      <span class="chip">SYMPA/PARA/INTER seulement si 🔴/🟠 (BPM vs P26/P84 perso ; P84 = 100−16)</span>
     </div>
   </div>
 
   <div class="card">
     <h2 style="margin:0;">Graphes (plein largeur)</h2>
-    <p class="small">1) CC repos matin & soir + moyenne lissée • 2) Effet net jour (soir − matin) + moyenne 7j • 3) Récupération nuit (matin − soir veille) + moyenne 7j.</p>
+    <p class="small">1) CC repos matin & soir • 2) Δ NUIT (matin − soir veille) • 3) Δ JOUR (soir − matin).</p>
 
     <div class="charts">
       <div class="chart-card">
@@ -224,30 +152,45 @@
         <canvas id="c1"></canvas>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Effet net jour (soir − matin) + moyenne 7j</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ NUIT (matin − soir veille)</div>
         <canvas id="c2"></canvas>
       </div>
       <div class="chart-card">
-        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Récupération nuit (matin − soir veille) + moyenne 7j</div>
+        <div class="muted" style="font-size:.85rem;margin-bottom:6px;">Δ JOUR (soir − matin)</div>
         <canvas id="c3"></canvas>
       </div>
     </div>
   </div>
 
+  
   <div class="card">
     <h2 style="margin:0;">Lecture & biofeedback</h2>
-    <p class="small">Une phrase simple + un repère 4-quadrants, calculés sur tes données récentes.</p>
-    <div id="guidance" class="empty" style="margin-top:8px;">Ajoute une mesure du matin (et idéalement du soir) pour activer la lecture.</div>
+    <p class="small">Une seule info utile, qui parle au système nerveux. (Basé sur tes données récentes.)</p>
+    <div id="bio" class="empty" style="margin-top:8px;">Pas assez de données pour une lecture (il faut au moins un matin + un soir).</div>
   </div>
 
-  <div class="card">
+<div class="card">
     <h2 style="margin:0;">Historique</h2>
     <div id="history" class="empty" style="margin-top:8px;">Rien pour l’instant.</div>
   </div>
 </div>
 
 <script>
+  // --- Debug doux: si une erreur JS bloque l’app, on l’affiche ici au lieu de “rien ne marche”.
+  window.addEventListener("error", (ev) => {
+    try{
+      const box = document.getElementById("summary") || document.body;
+      const msg = (ev && (ev.message || ev.error && ev.error.message)) ? (ev.message || ev.error.message) : "Erreur JavaScript.";
+      const where = (ev && ev.filename) ? ` (${ev.filename.split("/").slice(-1)[0]}:${ev.lineno||"?"})` : "";
+      const html = `<div class="card" style="border:2px solid #ef4444;">
+        <b>Erreur JS</b> : ${msg}${where}<br>
+        <span class="muted">Astuce: sur Android/Chrome, fais une actualisation complète ou vide le cache du site.</span>
+      </div>`;
+      if(box && box.innerHTML!=null) box.innerHTML = html;
+    }catch(e){}
+  });
   // =======================
+
   // Baseline (historique) intégré – utilisé UNIQUEMENT pour les calculs
   // =======================
   const BASELINE_DATA = [{"id": "imp_1767956895743_0", "dt": "2025-10-20T08:00", "ctx": "matin_repos", "cc": 0.9, "bpm": 66, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_1", "dt": "2025-10-20T15:00", "ctx": "aprem_actif", "cc": 1.3, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_2", "dt": "2025-10-20T22:00", "ctx": "soir_repos", "cc": 1.5, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_3", "dt": "2025-10-21T08:00", "ctx": "matin_repos", "cc": 1.4, "bpm": 62, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_4", "dt": "2025-10-21T15:00", "ctx": "aprem_actif", "cc": 3.4, "bpm": 72, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_5", "dt": "2025-10-21T22:00", "ctx": "soir_repos", "cc": 1.4, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_6", "dt": "2025-10-22T08:00", "ctx": "matin_repos", "cc": 1.4, "bpm": 66, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_7", "dt": "2025-10-22T15:00", "ctx": "aprem_actif", "cc": 1.5, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_8", "dt": "2025-10-22T22:00", "ctx": "soir_repos", "cc": 0.71, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_9", "dt": "2025-10-23T08:00", "ctx": "matin_repos", "cc": 1.3, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_10", "dt": "2025-10-23T15:00", "ctx": "aprem_actif", "cc": 1.0, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895743_11", "dt": "2025-10-23T22:00", "ctx": "soir_repos", "cc": 0.7, "bpm": null, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_12", "dt": "2025-10-24T08:00", "ctx": "matin_repos", "cc": 1.8, "bpm": 84, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_13", "dt": "2025-10-24T15:00", "ctx": "aprem_actif", "cc": 3.0, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_14", "dt": "2025-10-24T16:30", "ctx": "post_exercice", "cc": 4.2, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_15", "dt": "2025-10-24T22:00", "ctx": "soir_repos", "cc": 1.1, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_16", "dt": "2025-10-25T08:00", "ctx": "matin_repos", "cc": 1.3, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_17", "dt": "2025-10-25T15:00", "ctx": "aprem_actif", "cc": 2.7, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_18", "dt": "2025-10-25T22:00", "ctx": "soir_repos", "cc": 1.5, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_19", "dt": "2025-10-26T08:00", "ctx": "matin_repos", "cc": 1.4, "bpm": 64, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_20", "dt": "2025-10-26T22:00", "ctx": "soir_repos", "cc": 1.2, "bpm": 70, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_21", "dt": "2025-10-27T08:00", "ctx": "matin_repos", "cc": 1.0, "bpm": 60, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_22", "dt": "2025-10-27T15:00", "ctx": "aprem_actif", "cc": 3.3, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_23", "dt": "2025-10-27T16:30", "ctx": "post_exercice", "cc": 4.3, "bpm": 79, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_24", "dt": "2025-10-27T22:00", "ctx": "soir_repos", "cc": 1.6, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_25", "dt": "2025-10-28T08:00", "ctx": "matin_repos", "cc": 1.7, "bpm": 64, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_26", "dt": "2025-10-28T15:00", "ctx": "aprem_actif", "cc": 4.1, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_27", "dt": "2025-10-28T16:30", "ctx": "post_exercice", "cc": 4.5, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_28", "dt": "2025-10-28T22:00", "ctx": "soir_repos", "cc": 0.9, "bpm": 73, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_29", "dt": "2025-10-29T08:00", "ctx": "matin_repos", "cc": 1.1, "bpm": 69, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_30", "dt": "2025-10-29T15:00", "ctx": "aprem_actif", "cc": 1.5, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_31", "dt": "2025-10-29T16:30", "ctx": "post_exercice", "cc": 4.3, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_32", "dt": "2025-10-29T22:00", "ctx": "soir_repos", "cc": 0.5, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_33", "dt": "2025-10-30T08:00", "ctx": "matin_repos", "cc": 1.9, "bpm": 70, "ex": "", "note": "import ods"}, {"id": "imp_1767956895744_34", "dt": "2025-10-30T15:00", "ctx": "aprem_actif", "cc": 2.4, "bpm": 89, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_35", "dt": "2025-10-30T22:00", "ctx": "soir_repos", "cc": 1.2, "bpm": 77, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_36", "dt": "2025-10-31T08:00", "ctx": "matin_repos", "cc": 1.2, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_37", "dt": "2025-10-31T15:00", "ctx": "aprem_actif", "cc": 2.3, "bpm": 78, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_38", "dt": "2025-10-31T22:00", "ctx": "soir_repos", "cc": 0.6, "bpm": 72, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_39", "dt": "2025-11-01T08:00", "ctx": "matin_repos", "cc": 0.0, "bpm": 72, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_40", "dt": "2025-11-01T15:00", "ctx": "aprem_actif", "cc": 0.9, "bpm": 84, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_41", "dt": "2025-11-01T22:00", "ctx": "soir_repos", "cc": 1.0, "bpm": 67, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_42", "dt": "2025-11-02T08:00", "ctx": "matin_repos", "cc": 1.3, "bpm": 64, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_43", "dt": "2025-11-02T15:00", "ctx": "aprem_actif", "cc": 1.1, "bpm": 82, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_44", "dt": "2025-11-02T16:30", "ctx": "post_exercice", "cc": 3.8, "bpm": 83, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_45", "dt": "2025-11-02T22:00", "ctx": "soir_repos", "cc": 1.4, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_46", "dt": "2025-11-03T08:00", "ctx": "matin_repos", "cc": 1.5, "bpm": 67, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_47", "dt": "2025-11-03T15:00", "ctx": "aprem_actif", "cc": 1.7, "bpm": null, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_48", "dt": "2025-11-03T16:30", "ctx": "post_exercice", "cc": 3.9, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_49", "dt": "2025-11-03T22:00", "ctx": "soir_repos", "cc": 0.4, "bpm": 82, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_50", "dt": "2025-11-04T15:00", "ctx": "aprem_actif", "cc": 0.8, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_51", "dt": "2025-11-04T16:30", "ctx": "post_exercice", "cc": 3.1, "bpm": 75, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_52", "dt": "2025-11-04T22:00", "ctx": "soir_repos", "cc": 1.0, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_53", "dt": "2025-11-05T08:00", "ctx": "matin_repos", "cc": 2.2, "bpm": 63, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_54", "dt": "2025-11-05T15:00", "ctx": "aprem_actif", "cc": 2.3, "bpm": 87, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_55", "dt": "2025-11-05T16:30", "ctx": "post_exercice", "cc": 3.6, "bpm": 89, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_56", "dt": "2025-11-05T22:00", "ctx": "soir_repos", "cc": 0.4, "bpm": 55, "ex": "", "note": "import ods"}, {"id": "imp_1767956895745_57", "dt": "2025-11-06T08:00", "ctx": "matin_repos", "cc": 1.1, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_58", "dt": "2025-11-07T08:00", "ctx": "matin_repos", "cc": 1.1, "bpm": 81, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_59", "dt": "2025-11-07T22:00", "ctx": "soir_repos", "cc": 1.2, "bpm": 80, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_60", "dt": "2025-11-08T08:00", "ctx": "matin_repos", "cc": 1.9, "bpm": 65, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_61", "dt": "2025-11-08T15:00", "ctx": "aprem_actif", "cc": 0.8, "bpm": 76, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_62", "dt": "2025-11-08T16:30", "ctx": "post_exercice", "cc": 4.3, "bpm": 79, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_63", "dt": "2025-11-08T22:00", "ctx": "soir_repos", "cc": 3.1, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_64", "dt": "2025-11-09T08:00", "ctx": "matin_repos", "cc": 1.2, "bpm": 67, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_65", "dt": "2025-11-09T22:00", "ctx": "soir_repos", "cc": 2.0, "bpm": 74, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_66", "dt": "2025-11-10T08:00", "ctx": "matin_repos", "cc": 0.7, "bpm": 68, "ex": "", "note": "import ods"}, {"id": "imp_1767956895746_67", "dt": "2025-11-10T22:00", "ctx": "soir_repos", "cc": 1.0, "bpm": 71, "ex": "", "note": "import ods"}];
@@ -271,9 +214,59 @@
   function loadUserData(){
     try{
       const raw = localStorage.getItem(KEY_USER);
-      if(!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      if(raw){
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      // Migration douce: si l’app a déjà utilisé d’autres clés cc_user_data*
+      const candidates = [];
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(!k) continue;
+        if(k === KEY_USER) continue;
+        if(/^cc_user_data/i.test(k) || /^cc_user_data_v1/i.test(k)){
+          candidates.push(k);
+        }
+        if(/^cc_user_data_v1_/.test(k)){ candidates.push(k); }
+      }
+      // Déduplique
+      const uniq = [...new Set(candidates)];
+      let merged = [];
+      for(const k of uniq){
+        try{
+          const r = localStorage.getItem(k);
+          if(!r) continue;
+          const p = JSON.parse(r);
+          if(Array.isArray(p)) merged = merged.concat(p);
+          else if(Array.isArray(p.userData)) merged = merged.concat(p.userData);
+        }catch(e){}
+      }
+      // Nettoyage minimal + dédoublonnage par id
+      const byId = new Map();
+      for(const x of merged){
+        if(x && typeof x === "object"){
+          const id = x.id || (x.dt + "_" + x.ctx + "_" + x.cc);
+          if(!byId.has(id)){
+            byId.set(id, x);
+          }
+        }
+      }
+      const arr = Array.from(byId.values()).filter(x => x.dt && CONTEXT_LABELS[x.ctx] && Number.isFinite(parseCC(x.cc)) );
+      // Normalise champs
+      const cleaned = arr.map(x => ({
+        id: x.id || ("id_"+Date.now()+"_"+Math.random().toString(16).slice(2)),
+        dt: x.dt,
+        ctx: x.ctx,
+        cc: Number.isFinite(x.cc) ? x.cc : parseCC(x.cc),
+        bpm: Number.isFinite(x.bpm) ? x.bpm : parseBPM(x.bpm),
+        note: x.note || ""
+      })).filter(x=> x.dt && CONTEXT_LABELS[x.ctx] && Number.isFinite(x.cc));
+      if(cleaned.length){
+        // Sauve dans la clé standard sans effacer les autres (zéro risque)
+        saveUserData(cleaned);
+        return cleaned;
+      }
+      return [];
     }catch(e){ return []; }
   }
   function saveUserData(data){ localStorage.setItem(KEY_USER, JSON.stringify(data)); }
@@ -342,6 +335,22 @@
     return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
   }
 
+
+  // Moyenne glissante (ignore les nulls). window=7 par défaut.
+  function movingAvg(values, window=7){
+    const out = Array(values.length).fill(null);
+    for(let i=0;i<values.length;i++){
+      let sum = 0, n = 0;
+      for(let k=i;k>=0 && (i-k)<window;k--){
+        const v = values[k];
+        if(v!=null && Number.isFinite(v)){ sum += v; n += 1; }
+      }
+      out[i] = n ? (sum/n) : null;
+    }
+    return out;
+  }
+
+
   // =======================
   // Stats (baseline + user) – par contexte
   // =======================
@@ -358,10 +367,10 @@
         p2618: percentile(ccs, 0.2618),
         p50: percentile(ccs, 0.5),
         p75: percentile(ccs, 0.75),
+        bpm26: percentile(bpms, 0.26),
         bpm50: percentile(bpms, 0.5),
-        bpmP26: percentile(bpms, 0.26),
-        bpmP84: percentile(bpms, 0.84),
-      };
+        bpm84: percentile(bpms, 0.84),
+        };
     }
     return out;
   }
@@ -378,15 +387,18 @@
   }
 
   function profileSNA(row, st, zoneCode){
+    // Activation relative (BPM) : affichée uniquement si la zone CC est BAS/TRÈS BAS (zoneCode 1/2)
     if(zoneCode !== 1 && zoneCode !== 2) return "";
-    if(row.bpm == null || !Number.isFinite(row.bpm) || st?.bpmP26 == null || st?.bpmP84 == null) return "";
-    // Règle perso: PARA <= P26, SYMPA >= P84 (100-16), sinon zone intermédiaire.
-    if(row.bpm <= st.bpmP26) return "PARA";
-    if(row.bpm >= st.bpmP84) return "SYMPA";
+    if(row.bpm == null || !Number.isFinite(row.bpm) || !st) return "";
+
+    // Seuils perso BPM : PARA <= P26 ; SYMPA >= P84 (100-16) ; sinon zone intermédiaire
+    if(st.bpm26 == null || st.bpm84 == null) return "";
+    if(row.bpm <= st.bpm26) return "PARA";
+    if(row.bpm >= st.bpm84) return "SYMPA";
     return "INTER";
   }
 
-  // Δ post-exercice calculé UNIQUEMENT sur tes nouvelles mesures
+  // Δercice calculé UNIQUEMENT sur tes nouvelles mesures
   function deltaPostEx(row, userData){
     if(row.ctx !== "post_exercice" || row.cc == null) return null;
     const dk = dayKey(row.dt);
@@ -422,7 +434,7 @@
     const z = classify(last.cc, st);
     const prof = (z.code!=null) ? profileSNA(last, st, z.code) : "";
     const delta = deltaPostEx(last, userData);
-    const extra = last.ctx === "post_exercice" ? ` • Δ post-ex: <b>${fmtDelta(delta)}</b>` : "";
+    const extra = last.ctx === "post_exercice" ? ` • Δ: <b>${fmtDelta(delta)}</b>` : "";
 
     el.className = "";
     el.innerHTML = `
@@ -456,7 +468,7 @@
         <div class="stat">
           <div class="k">${CONTEXT_LABELS[ctx]} — n=${s.n}</div>
           <div class="v">P16,18: ${fmtNum(s.p1618)} • P26,18: ${fmtNum(s.p2618)}</div>
-          <div class="small">Moy.: ${fmtNum(s.mean)} • P50: ${fmtNum(s.p50)} • P75: ${fmtNum(s.p75)} • BPM: P26 ${s.bpmP26!=null?Math.round(s.bpmP26):"—"} • P50 ${s.bpm50!=null?Math.round(s.bpm50):"—"} • P84 ${s.bpmP84!=null?Math.round(s.bpmP84):"—"}</div>
+          <div class="small">Moy.: ${fmtNum(s.mean)} • P50: ${fmtNum(s.p50)} • P75: ${fmtNum(s.p75)} • BPM P26/P50/P84: ${s.bpm26!=null?Math.round(s.bpm26):"—"}/${s.bpm50!=null?Math.round(s.bpm50):"—"}/${s.bpm84!=null?Math.round(s.bpm84):"—"}</div>
         </div>
       `;
     }).join("");
@@ -477,7 +489,7 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>SYMPA/PARA</th><th>Δ post-ex</th><th>Note</th><th></th>
+            <th>Date</th><th>Contexte</th><th>CC / BPM</th><th>Zone</th><th>SYMPA/PARA</th><th>Δ</th><th>Note</th><th></th>
           </tr>
         </thead><tbody>
     `;
@@ -502,6 +514,209 @@
     html += `</tbody></table>`;
     el.innerHTML = html;
   }
+
+  // =======================
+  // Lecture & biofeedback (NUIT/JOUR + Alignement)
+  // =======================
+  const KEY_ALIGN = "cc_alignment_v1";
+
+  const MAP_NUIT = {
+    BASE_HAUTE: {
+      Q1: {emoji:"🌙🍀", mode:"OSE",     label:"Nuit très aidante"},
+      Q2: {emoji:"🌙🙂", mode:"DOSE",    label:"Nuit correcte"},
+      Q3: {emoji:"🌙⚖️", mode:"DOSE",    label:"Nuit un peu coûteuse"},
+      Q4: {emoji:"🌙🧸", mode:"PROTÈGE", label:"Nuit trop coûteuse"},
+    },
+    BASE_BASSE: {
+      Q1: {emoji:"🌙🫶", mode:"DOSE",    label:"Nuit aidante malgré fragilité"},
+      Q2: {emoji:"🌙🐾", mode:"PROTÈGE", label:"Nuit légère, sans vraie recharge"},
+      Q3: {emoji:"🌙🧯", mode:"PROTÈGE", label:"Nuit coûteuse"},
+      Q4: {emoji:"🌙🚧", mode:"PROTÈGE", label:"Nuit très difficile"},
+    }
+  };
+
+  const MAP_JOUR = {
+    BASE_HAUTE: {
+      Q1: {emoji:"☀️🍀", mode:"OSE",     label:"Journée très aidante"},
+      Q2: {emoji:"☀️🙂", mode:"DOSE",    label:"Bonne journée"},
+      Q3: {emoji:"☀️⚖️", mode:"DOSE",    label:"Journée un peu coûteuse"},
+      Q4: {emoji:"☀️🧸", mode:"PROTÈGE", label:"Journée trop exigeante"},
+    },
+    BASE_BASSE: {
+      Q1: {emoji:"☀️🫶", mode:"DOSE",    label:"Journée réparatrice malgré tout"},
+      Q2: {emoji:"☀️🐾", mode:"PROTÈGE", label:"Journée contenue"},
+      Q3: {emoji:"☀️🧯", mode:"PROTÈGE", label:"Journée lourde"},
+      Q4: {emoji:"☀️🚧", mode:"PROTÈGE", label:"Journée trop coûteuse"},
+    }
+  };
+
+  function latestIdxWith(series){
+    for(let i=series.length-1;i>=0;i--){
+      const v = series[i];
+      if(v!=null && Number.isFinite(v)) return i;
+    }
+    return -1;
+  }
+
+  function baseFromG1(morning, morningAvg){
+    if(morning==null || !Number.isFinite(morning) || morningAvg==null || !Number.isFinite(morningAvg)) return null;
+    return morning >= morningAvg ? "BASE_HAUTE" : "BASE_BASSE";
+  }
+
+  function quadrantFrom(delta, mean){
+    if(delta==null || !Number.isFinite(delta) || mean==null || !Number.isFinite(mean)) return null;
+    const pos = delta >= 0;
+    const above = delta >= mean;
+    if(pos && above) return "Q1";
+    if(pos && !above) return "Q2";
+    if(!pos && above) return "Q3";
+    return "Q4";
+  }
+
+  function effectFromDayDelta(delta, mean){
+    if(delta==null || !Number.isFinite(delta) || mean==null || !Number.isFinite(mean)) return null;
+    if(delta >= 0) return "Aidant";
+    if(delta >= mean) return "Contenu";
+    return "Coûteux";
+  }
+
+  function alignment(consigneMode, effet){
+    // Retourne {status:'GREEN'|'AMBER'|'RED', emoji, label}
+    if(!consigneMode || !effet) return null;
+    if(effet === "Coûteux") return {status:"RED", emoji:"🔴", label:"Non aligné"};
+    if(effet === "Aidant") return {status:"GREEN", emoji:"🟢", label:"Aligné"};
+    // effet === Contenu
+    if(consigneMode === "PROTÈGE") return {status:"GREEN", emoji:"🟢", label:"Aligné"};
+    return {status:"AMBER", emoji:"🟠", label:"Ajusté"};
+  }
+
+  function loadAlignLog(){
+    try{
+      const raw = localStorage.getItem(KEY_ALIGN);
+      if(!raw) return {};
+      const obj = JSON.parse(raw);
+      return obj && typeof obj === "object" ? obj : {};
+    }catch(e){ return {}; }
+  }
+  function saveAlignLog(obj){
+    localStorage.setItem(KEY_ALIGN, JSON.stringify(obj));
+  }
+
+  function statsAlign(days){
+    const log = loadAlignLog();
+    function pct(lastN){
+      const tail = days.slice(-lastN);
+      let g=0,a=0,r=0,t=0;
+      for(const d of tail){
+        const s = log[d];
+        if(!s) continue;
+        t++;
+        if(s==="GREEN") g++;
+        else if(s==="AMBER") a++;
+        else if(s==="RED") r++;
+      }
+      const good = g+a;
+      return {t,g,a,r, goodPct: t? Math.round((good/t)*100): null};
+    }
+    return {s7:pct(7), s30:pct(30)};
+  }
+
+  function renderBiofeedback(){
+    const el = document.getElementById("bio");
+    if(!el) return;
+
+    const S = window.__CC_SERIES__;
+    if(!S || !S.days?.length){
+      el.className = "empty";
+      el.textContent = "Pas assez de données pour une lecture.";
+      return;
+    }
+
+    // On se place sur le dernier jour qui a un matin (base) pour lire la nuit et/ou un soir pour lire le jour.
+    const iM = latestIdxWith(S.g1_m);
+    if(iM < 0){
+      el.className = "empty";
+      el.textContent = "Pas assez de données (il faut au moins un matin).";
+      return;
+    }
+
+    const day = S.days[iM];
+    const base = baseFromG1(S.g1_m[iM], S.g1_m_avg[iM]);
+    if(!base){
+      el.className = "empty";
+      el.textContent = "Lecture indisponible (moyenne matin 7j pas encore stable).";
+      return;
+    }
+
+    // Nuit (G2) au même index iM (delta nuit de ce jour)
+    const dn = S.g2_nuit[iM];
+    const mn = S.g2_nuit_avg[iM];
+    const qN = quadrantFrom(dn, mn);
+    const nuit = qN ? MAP_NUIT[base][qN] : null;
+
+    // Jour (G3) au même jour si dispo
+    const dj = S.g3_jour[iM];
+    const mj = S.g3_jour_avg[iM];
+    const qJ = quadrantFrom(dj, mj);
+    const jour = qJ ? MAP_JOUR[base][qJ] : null;
+
+    // Alignement si on a jour + consigne
+    const effet = (dj!=null && mj!=null) ? effectFromDayDelta(dj, mj) : null;
+    const ali = (nuit && effet) ? alignment(nuit.mode, effet) : null;
+
+    // Log alignement par date si calculable
+    if(ali && day){
+      const log = loadAlignLog();
+      log[day] = ali.status;
+      saveAlignLog(log);
+    }
+
+    const alignStats = statsAlign(S.days);
+
+    el.className = "";
+    const card = (title, obj, extra) => obj ? `
+      <div class="stat">
+        <div class="k">${title}</div>
+        <div class="v">${obj.emoji} <b>${obj.mode}</b> — ${obj.label}</div>
+        ${extra ? `<div class="small">${extra}</div>` : ``}
+      </div>` : `
+      <div class="stat">
+        <div class="k">${title}</div>
+        <div class="v">—</div>
+        <div class="small">Pas assez de données</div>
+      </div>`;
+
+    const alignCard = ali ? `
+      <div class="stat">
+        <div class="k">Alignement (soir)</div>
+        <div class="v">${ali.emoji} <b>${ali.label}</b></div>
+        <div class="small">Effet du jour: <b>${effet}</b> • dans le bon sens: 
+          ${alignStats.s7.goodPct!=null?`<b>${alignStats.s7.goodPct}%</b> (7j)`:`—`} • 
+          ${alignStats.s30.goodPct!=null?`<b>${alignStats.s30.goodPct}%</b> (30j)`:`—`}
+          <span class="muted"> • 🟢${alignStats.s30.g} 🟠${alignStats.s30.a} 🔴${alignStats.s30.r}</span>
+        </div>
+      </div>` : `
+      <div class="stat">
+        <div class="k">Alignement (soir)</div>
+        <div class="v">—</div>
+        <div class="small">Il faut une mesure du soir pour ce jour.</div>
+      </div>`;
+
+    el.innerHTML = `
+      <div class="grid">
+        <div class="stat">
+          <div class="k">Jour</div>
+          <div class="v">${day}</div>
+          <div class="small">Base: <b>${base==="BASE_HAUTE"?"haute":"basse"}</b> (vs moy. matin 7j)</div>
+        </div>
+        ${card("Matin — lecture de nuit", nuit, (dn!=null&&mn!=null)?`ΔNuit=${fmtDelta(dn)} • moy7j=${fmtDelta(mn)} • ${qN}`:"")}
+        ${card("Soir — bilan de journée", jour, (dj!=null&&mj!=null)?`ΔJour=${fmtDelta(dj)} • moy7j=${fmtDelta(mj)} • ${qJ}`:"")}
+        ${alignCard}
+      </div>
+    `;
+  }
+
+
 
   // ---- Canvas sizing
   function setupCanvas(canvas){
@@ -542,7 +757,6 @@
   }
 
   function renderCharts(userData, stats){
-    // 1 valeur par jour/contexte (la plus récente du jour)
     const byDay = {};
     for(const r of userData){
       const dk = dayKey(r.dt);
@@ -553,45 +767,29 @@
     }
     const days = Object.keys(byDay).sort();
 
+    // G1: CC matin/soir
     const g1_m = days.map(d=> byDay[d].matin_repos?.cc ?? null);
     const g1_s = days.map(d=> byDay[d].soir_repos?.cc ?? null);
+    const g1_m_avg = movingAvg(g1_m, 7); // moyenne glissante 7j (matin)
 
-    function movingAverage(arr, win){
-      const out = [];
-      for(let i=0;i<arr.length;i++){
-        let sum = 0, n = 0;
-        for(let k=Math.max(0,i-win+1); k<=i; k++){
-          const v = arr[k];
-          if(v!=null && Number.isFinite(v)){ sum += v; n++; }
-        }
-        out.push(n ? sum/n : null);
-      }
-      return out;
-    }
-
-    // Graphe 1: moyenne matin lissée (7 jours)
-    const g1_m_ma7 = movingAverage(g1_m, 7);
-
-    // Graphe 2 (Jour): Effet net = soir - matin
-    const g2_day = days.map(d=>{
-      const m = byDay[d].matin_repos?.cc;
-      const s = byDay[d].soir_repos?.cc;
-      if(m==null || s==null) return null;
-      if(!Number.isFinite(m) || !Number.isFinite(s)) return null;
-      return s - m;
-    });
-    const g2_day_ma7 = movingAverage(g2_day, 7);
-
-    // Graphe 3 (Nuit): Récupération = matin (jour J) - soir (jour J-1)
-    const g3_night = days.map((d, i)=>{
+    // G2 (NUIT): Matin(d) − Soir(d−1)
+    const g2_nuit = days.map((d, i)=>{
+      const rM = byDay[d].matin_repos; if(!rM || !Number.isFinite(rM.cc)) return null;
       if(i===0) return null;
-      const m = byDay[days[i]]?.matin_repos?.cc;
-      const sPrev = byDay[days[i-1]]?.soir_repos?.cc;
-      if(m==null || sPrev==null) return null;
-      if(!Number.isFinite(m) || !Number.isFinite(sPrev)) return null;
-      return m - sPrev;
+      const prevDay = days[i-1];
+      const rSprev = byDay[prevDay]?.soir_repos;
+      if(!rSprev || !Number.isFinite(rSprev.cc)) return null;
+      return rM.cc - rSprev.cc;
     });
-    const g3_night_ma7 = movingAverage(g3_night, 7);
+    const g2_nuit_avg = movingAvg(g2_nuit, 7);
+
+    // G3 (JOUR): Soir(d) − Matin(d)
+    const g3_jour = days.map(d=>{
+      const rM = byDay[d].matin_repos; const rS = byDay[d].soir_repos;
+      if(!rM || !rS || !Number.isFinite(rM.cc) || !Number.isFinite(rS.cc)) return null;
+      return rS.cc - rM.cc;
+    });
+    const g3_jour_avg = movingAvg(g3_jour, 7);
 
     function drawSeriesNulls(canvasId, seriesList, yLabel, fixedMinMax=null){
       const canvas = document.getElementById(canvasId);
@@ -635,7 +833,9 @@
       for(const ser of seriesList){
         ctx.strokeStyle = ser.stroke;
         ctx.fillStyle = ser.fill;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = ser.lineWidth ?? 2;
+        if(ser.dash){ ctx.setLineDash(ser.dash); } else { ctx.setLineDash([]); }
+
         let seg = [];
         for(let i=0;i<days.length;i++){
           const v = ser.values[i];
@@ -643,6 +843,7 @@
           else seg.push({i, v});
         }
         flush(seg);
+        ctx.setLineDash([]);
 
         function flush(seg){
           if(seg.length>=2){
@@ -653,6 +854,7 @@
             }
             ctx.stroke();
           }
+          if(ser.noPoints) return;
           for(const pt of seg){
             const p = toXY(scale, pt.i, days.length, pt.v);
             ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
@@ -671,305 +873,117 @@
       }
     }
 
+    // Graph 1
     drawSeriesNulls("c1", [
       {name:"Matin repos", values:g1_m, stroke:"#2563eb", fill:"#2563eb"},
-      {name:"Moy. matin 7j", values:g1_m_ma7, stroke:"#111827", fill:"#111827"},
       {name:"Soir repos", values:g1_s, stroke:"#16a34a", fill:"#16a34a"},
+      {name:"Moy. matin 7j", values:g1_m_avg, stroke:"#111827", fill:"#111827", lineWidth:1, dash:[6,4], noPoints:true},
     ], "CC");
 
+    // Graph 2 = NUIT
     drawSeriesNulls("c2", [
-      {name:"Jour (soir - matin)", values:g2_day, stroke:"#7c3aed", fill:"#7c3aed"},
-      {name:"Moy. jour 7j", values:g2_day_ma7, stroke:"#111827", fill:"#111827"},
-    ], "Δ CC");
+      {name:"Δ Nuit", values:g2_nuit, stroke:"#7c3aed", fill:"#7c3aed"},
+      {name:"Moy. Δ Nuit 7j", values:g2_nuit_avg, stroke:"#111827", fill:"#111827", lineWidth:1, dash:[6,4], noPoints:true},
+    ], "Δ Nuit (Matin − Soir veille)");
 
+    // Graph 3 = JOUR
     drawSeriesNulls("c3", [
-      {name:"Nuit (matin - soir veille)", values:g3_night, stroke:"#2563eb", fill:"#2563eb"},
-      {name:"Moy. nuit 7j", values:g3_night_ma7, stroke:"#111827", fill:"#111827"},
-    ], "Δ CC");
+      {name:"Δ Jour", values:g3_jour, stroke:"#f59e0b", fill:"#f59e0b"},
+      {name:"Moy. Δ Jour 7j", values:g3_jour_avg, stroke:"#111827", fill:"#111827", lineWidth:1, dash:[6,4], noPoints:true},
+    ], "Δ Jour (Soir − Matin)");
+
+    // Expose series for biofeedback (latest day)
+    window.__CC_SERIES__ = {days, g1_m, g1_s, g1_m_avg, g2_nuit, g2_nuit_avg, g3_jour, g3_jour_avg};
   }
 
-  
-// =======================
-  // Guidance (phrases + quadrants + alignment)
-  // =======================
-  function mean(arr){
-    const xs = arr.filter(v => v!=null && Number.isFinite(v));
-    if(!xs.length) return null;
-    return xs.reduce((a,b)=>a+b,0)/xs.length;
-  }
 
-  function meanPrevWindow(arr, i, win){
-    const xs = [];
-    for(let j=i-1; j>=0 && xs.length<win; j--){
-      const v = arr[j];
-      if(v!=null && Number.isFinite(v)) xs.push(v);
-    }
-    if(!xs.length) return null;
-    return xs.reduce((a,b)=>a+b,0)/xs.length;
-  }
-
-  function g1StateForMorning(mRow, stats, byDay, days, i){
-    if(!mRow || mRow.cc==null) return {state:"—", label:"—", color:"b-type"};
-
-    // 1) Zone (TRÈS BAS / BAS / OK) via percentiles par contexte
-    const st = stats?.matin_repos;
-    const z = classify(mRow.cc, st);
-
-    // 2) Moyenne lissée (7j) sur CC matin (uniquement nouvelles mesures)
-    const mVals = days.map((d, idx)=> byDay[d].matin_repos?.cc ?? null);
-    const avgPrev = meanPrevWindow(mVals, i, 7);
-
-    // 3) Mapping en 4 états (sol)
-    if(z.code === 2) return {state:"bloc", label:"Bloc / gel", color:"b-red"};
-    if(z.code === 1) return {state:"fragile", label:"Base fragile", color:"b-amber"};
-
-    // OK : on distingue "bonne" vs "moyenne" via moyenne glissante
-    if(avgPrev == null) return {state:"moyenne", label:"Base moyenne", color:"b-type"};
-    if(mRow.cc >= avgPrev) return {state:"bonne", label:"Bonne base", color:"b-green"};
-    return {state:"moyenne", label:"Base moyenne", color:"b-type"};
-  }
-
-  function quadrantLabel(kind, val, avgPrev){
-    // kind: 'day' or 'night'
-    if(val == null || !Number.isFinite(val)) return {label:"—", short:"—", cls:"qcell"};
-    const pos = val >= 0;
-    const hasAvg = avgPrev!=null && Number.isFinite(avgPrev);
-    const above = hasAvg ? (val >= avgPrev) : null;
-
-    if(kind === "day"){
-      // 4 quadrants = signe + vs moyenne
-      if(pos && (above === true || above === null)) return {label:"Nourrissante", short:"+ / ≥ moy.", cls:"qcell qgood"};
-      if(pos && above === false) return {label:"Stable", short:"+ / < moy.", cls:"qcell qmid"};
-      if(!pos && (above === true || above === null)) return {label:"Exigeante mais gérée", short:"- / ≥ moy.", cls:"qcell qmid"};
-      return {label:"Trop coûteuse", short:"- / < moy.", cls:"qcell qbad"};
-    }
-
-    // night
-    if(pos && (above === true || above === null)) return {label:"Réparatrice", short:"+ / ≥ moy.", cls:"qcell qgood"};
-    if(pos && above === false) return {label:"Aidante", short:"+ / < moy.", cls:"qcell qmid"};
-    if(!pos && (above === true || above === null)) return {label:"Insuffisante", short:"- / ≥ moy.", cls:"qcell qmid"};
-    return {label:"Coûteuse", short:"- / < moy.", cls:"qcell qbad"};
-  }
-
-  function outcome2(val, avgPrev){
-    // favorable/defavorable en version neuro-safe
-    if(val == null || !Number.isFinite(val)) return null;
-    if(avgPrev!=null && Number.isFinite(avgPrev)) return (val >= avgPrev) ? "fav" : "def";
-    return val >= 0 ? "fav" : "def";
-  }
-
-  const PHRASES_DAY = {
-    bloc:   { fav:"Bloc : tu as protégé. Journée tenue.", def:"Bloc : journée trop coûteuse. Priorité sécurité." },
-    fragile:{ fav:"Fragile : bonne protection. Journée gérable.", def:"Fragile : surcharge. Demain on protège." },
-    moyenne:{ fav:"Base moyenne : bon dosage aujourd’hui.", def:"Base moyenne : journée exigeante. Ajuste demain." },
-    bonne:  { fav:"Bonne base : tu as consolidé.", def:"Bonne base : coût inhabituel. Surveille fatigue." },
-  };
-
-  const PHRASES_NIGHT = {
-    bloc:   { fav:"Bloc : la nuit aide un peu (c’est précieux).", def:"Bloc : nuit difficile. On ralentit." },
-    fragile:{ fav:"Fragile : la nuit a aidé. Aujourd’hui on dose.", def:"Fragile : nuit insuffisante. Protection." },
-    moyenne:{ fav:"Base moyenne : nuit aidante. Journée à doser.", def:"Base moyenne : nuit agitée. Reste souple." },
-    bonne:  { fav:"Bonne base : nuit réparatrice. Tu peux oser.", def:"Bonne base : nuit moyenne. Dose intelligemment." },
-  };
-
-  function intentionFromMorning(g1State, nightOutcome){
-    if(g1State === "bloc") return {key:"prot", text:"Aujourd’hui : on protège."};
-    if(g1State === "fragile") return {key:"prot", text:"Aujourd’hui : on protège."};
-    if(g1State === "bonne" && nightOutcome === "fav") return {key:"ose", text:"Aujourd’hui : tu peux oser."};
-    if(g1State === "bonne" && nightOutcome === "def") return {key:"dose", text:"Aujourd’hui : tu doses."};
-    if(g1State === "moyenne" && nightOutcome === "fav") return {key:"dose", text:"Aujourd’hui : tu doses."};
-    return {key:"prot", text:"Aujourd’hui : on protège."};
-  }
-
-  function alignmentFrom(intentionKey, dayQuadrantLabel, dayVal){
-    // 4 possibilités
-    const tooCostly = dayQuadrantLabel === "Trop coûteuse";
-    const okOrBetter = !tooCostly;
-    const improved = (dayVal!=null && Number.isFinite(dayVal) && dayVal >= 0);
-
-    if(intentionKey === "ose"){
-      if(tooCostly) return {key:"non", badge:"b-red", text:"Non aligné", detail:"Tu as dépassé ce que le corps pouvait encaisser."};
-      if(improved) return {key:"ap", badge:"b-green", text:"Aligné positif", detail:"Tu as osé et le corps a suivi."};
-      return {key:"part", badge:"b-amber", text:"Partiellement aligné", detail:"Globalement cohérent, avec un peu de friction."};
-    }
-
-    // prot or dose
-    if(tooCostly) return {key:"non", badge:"b-red", text:"Non aligné", detail:"Journée trop coûteuse pour le terrain du matin."};
-    if(improved) return {key:"prot", badge:"b-green", text:"Aligné protecteur", detail:"Tu as protégé et le corps s’est réparé."};
-    return {key:"part", badge:"b-amber", text:"Partiellement aligné", detail:"Plutôt juste, sans gain clair."};
-  }
-
-  function compassHTML(activeIdx, label){
-    if(activeIdx == null) return "";
-    // idx 0..3 -> [pos&above, pos&below, neg&above, neg&below]
-    // Emojis = ancrages rapides (nerveux-friendly)
-    const cellClass = (i)=> (i===0?"cTR": i===1?"cBR": i===2?"cTL":"cBL") + (i===activeIdx?" cActive":"");
-    const needleClass = (i)=> (i===0?"n0": i===1?"n1": i===2?"n2":"n3");
-
-    return `
-      <div class="compassWrap">
-        <div class="compassLegend">
-          <span>⬅️ Coûteux</span>
-          <span>${escapeHtml(label||"Boussole")}</span>
-          <span>Réparateur ➡️</span>
-        </div>
-        <div class="compass" aria-label="Boussole 4 quadrants">
-          <div class="compassGrid">
-            <div class="cCell ${cellClass(2)}">
-              <div class="cEmoji">🧸</div>
-              <div class="cText">Protège</div>
-              <div class="cSub">- &ge; moy.</div>
-            </div>
-            <div class="cCell ${cellClass(0)}">
-              <div class="cEmoji">🍀</div>
-              <div class="cText">Ose</div>
-              <div class="cSub">+ &ge; moy.</div>
-            </div>
-            <div class="cCell ${cellClass(3)}">
-              <div class="cEmoji">⚖️</div>
-              <div class="cText">Dose</div>
-              <div class="cSub">- &lt; moy.</div>
-            </div>
-            <div class="cCell ${cellClass(1)}">
-              <div class="cEmoji">🌱</div>
-              <div class="cText">Doux</div>
-              <div class="cSub">+ &lt; moy.</div>
-            </div>
-          </div>
-          <div class="needle ${needleClass(activeIdx)}"></div>
-        </div>
-        <div class="compassHint">↑ plus fort que d’habitude • ↓ plus doux</div>
-      </div>
-    `;
-  }
-
-  function quadrantIndex(kind, val, avgPrev){
-    if(val == null || !Number.isFinite(val)) return null;
-    const pos = val >= 0;
-    const hasAvg = avgPrev!=null && Number.isFinite(avgPrev);
-    const above = hasAvg ? (val >= avgPrev) : true;
-    if(pos && above) return 0;
-    if(pos && !above) return 1;
-    if(!pos && above) return 2;
-    return 3;
-  }
-
-  function renderGuidance(userData, stats){
-  const root = document.getElementById("guidance");
-  if(!root) return;
-  if(root) root.className = "";
-
-  // Build byDay (latest per ctx)
-  const byDay = {};
-  for(const r of userData){
-    const dk = dayKey(r.dt);
-    if(!dk) continue;
-    if(!byDay[dk]) byDay[dk] = {};
-    const prev = byDay[dk][r.ctx];
-    if(!prev || new Date(r.dt) > new Date(prev.dt)) byDay[dk][r.ctx] = r;
-  }
-  const days = Object.keys(byDay).sort();
-  if(!days.length){
-    root.innerHTML = `<div class="empty">Ajoute une mesure du matin (et idéalement du soir de la veille) pour activer la lecture.</div>`;
-    return;
-  }
-
-  // Δ Nuit = Matin(d) − Soir(d-1)
-  const deltaNight = days.map((d, i)=>{
-    const m = byDay[d].matin_repos;
-    if(!m || !Number.isFinite(m.cc)) return null;
-    const prevDay = days[i-1];
-    if(!prevDay) return null;
-    const prevS = byDay[prevDay].soir_repos;
-    if(!prevS || !Number.isFinite(prevS.cc)) return null;
-    return m.cc - prevS.cc;
-  });
-
-  // Pick latest day with a morning measurement
-  let i = days.length - 1;
-  while(i>=0 && !(byDay[days[i]].matin_repos && Number.isFinite(byDay[days[i]].matin_repos.cc))){
-    i--;
-  }
-  if(i < 0){
-    root.innerHTML = `<div class="empty">Ajoute une mesure du matin pour activer la lecture.</div>`;
-    return;
-  }
-
-  const d = days[i];
-  const mRow = byDay[d].matin_repos;
-
-  // Moyenne glissante (7j) du Δ Nuit (sur les valeurs précédentes)
-  const avgNightPrev = meanPrevWindow(deltaNight, i, 7);
-
-  // Base (G1) + zone du matin
-  const g1 = g1StateForMorning(mRow, stats, byDay, days, i);
-
-  // Lecture quadrants (NUIT uniquement)
-  const qNight = quadrantLabel("night", deltaNight[i], avgNightPrev);
-  const nightOut = outcome2(deltaNight[i], avgNightPrev);
-  const nightPhrase = PHRASES_NIGHT[g1.state]?.[nightOut || "def"] || "—";
-  const intention = intentionFromMorning(g1.state, nightOut);
-
-  const ni = quadrantIndex("night", deltaNight[i], avgNightPrev);
-  const nightValTxt = deltaNight[i]!=null ? fmtDelta(deltaNight[i]) : "—";
-  const avgTxt = avgNightPrev!=null ? fmtDelta(avgNightPrev) : "—";
-
-  const waiting = (deltaNight[i] == null || !Number.isFinite(deltaNight[i]));
-
-  root.innerHTML = `
-    <div class="guide">
-      <div class="guideCard">
-        <div class="guideTitle">Matin ${d.slice(5)} — Lecture de nuit</div>
-        <div class="guidePhrase">${nightPhrase}</div>
-        <div class="guideMeta">
-          <span class="badge ${g1.color}">${g1.label}</span>
-          <span class="badge b-type" style="margin-left:6px;">${intention.emoji} ${intention.text}</span>
-          <div class="small" style="margin-top:6px;">
-            Δ Nuit (matin − soir veille) : <b>${nightValTxt}</b> • Moy. 7j : <b>${avgTxt}</b>
-          </div>
-          ${waiting ? `<div class="small">⚠️ Pour un Δ Nuit fiable, ajoute aussi une mesure “Soir – repos” la veille.</div>` : ``}
-        </div>
-        ${compassHTML(ni, "Boussole NUIT")}
-        <div class="small" style="margin-top:8px;">Quadrant : <b>${escapeHtml(qNight.label)}</b></div>
-      </div>
-    </div>
-  `;
-}
-
-  function suggestContextFromHour(h){
-    // Heuristique simple (modifiable plus tard)
-    // 05-10 => matin repos, 10-19 => aprem actif, 19-02 => soir repos
-    if(h >= 5 && h < 10) return "matin_repos";
-    if(h >= 19 || h < 2) return "soir_repos";
-    return "aprem_actif";
-  }
-
-  function autoFillDateTime(force=false){
-    const dt = document.getElementById("dt");
-    if(!dt) return;
-    const val = nowDTLocalString();
-    if(force || (!_dtTouched && (!dt.value || dt.value === _lastAutoDT))){
-      dt.value = val;
-      _lastAutoDT = val;
-    }
-  }
-
-  function autoSuggestContext(force=false){
+  function updateInputHints(stats){
     const ctxSel = document.getElementById("ctx");
-    if(!ctxSel) return;
-    const h = new Date().getHours();
-    const suggested = suggestContextFromHour(h);
-    if(force || (!_ctxTouched && ctxSel.value !== suggested)){
-      ctxSel.value = suggested;
-    }
+    const ccInput = document.getElementById("cc");
+    const bpmInput = document.getElementById("bpm");
+    const ccHint = document.getElementById("ccHint");
+    const bpmHint = document.getElementById("bpmHint");
+    if(!ctxSel || !ccInput) return;
+
+    const ctx = ctxSel.value;
+    const st = stats && stats[ctx] ? stats[ctx] : null;
+
+    const mean = st && Number.isFinite(st.mean) ? fmtNum(st.mean) : "—";
+    const bpm50 = st && Number.isFinite(st.bpm50) ? String(Math.round(st.bpm50)) : "—";
+    const bpm26 = st && Number.isFinite(st.bpm26) ? String(Math.round(st.bpm26)) : "—";
+    const bpm84 = st && Number.isFinite(st.bpm84) ? String(Math.round(st.bpm84)) : "—";
+
+    // Placeholders = valeur moyenne/médiane, pour comparer au moment de saisir
+    ccInput.placeholder = mean !== "—" ? mean : "";
+    if(bpmInput) bpmInput.placeholder = bpm50 !== "—" ? bpm50 : "";
+
+    if(ccHint) ccHint.textContent = `Moyenne (contexte): ${mean}  •  n=${st ? st.n : 0}`;
+    if(bpmHint) bpmHint.textContent = `BPM P26/P50/P84 (perso): ${bpm26}/${bpm50}/${bpm84}`;
   }
 
+
+// =======================
+  // Export/Import (uniquement nouvelles mesures)
+  // =======================
+  function download(filename, text){
+    const blob = new Blob([text], {type:"application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportJSON(){
+    const userData = loadUserData();
+    const payload = {
+      version: 3,
+      exportedAt: new Date().toISOString(),
+      userData,
+      baselineCount: getBaselineData().length
+    };
+    download("cc_user_export.json", JSON.stringify(payload, null, 2));
+  }
+
+  function importJSON(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const parsed = JSON.parse(reader.result);
+        const incoming = parsed.userData || parsed.data || parsed;
+        if(!Array.isArray(incoming)) throw new Error("bad");
+
+        const cleaned = incoming
+          .filter(x => x && typeof x === "object")
+          .map(x => ({
+            id: x.id || ("id_"+Date.now()+"_"+Math.random().toString(16).slice(2)),
+            dt: x.dt || x.datetime || "",
+            ctx: x.ctx || x.contexte || "matin_repos",
+            cc: Number.isFinite(x.cc) ? x.cc : parseCC(x.cc),
+            bpm: Number.isFinite(x.bpm) ? x.bpm : parseBPM(x.bpm),            note: x.note || ""
+          }))
+          .filter(x => x.dt && CONTEXT_LABELS[x.ctx] && Number.isFinite(x.cc));
+
+        if(!confirm(`Importer ${cleaned.length} nouvelles mesures et remplacer celles de ce navigateur ?`)) return;
+        saveUserData(cleaned);
+        refresh();
+        alert("Import terminé ✅");
+      }catch(e){
+        alert("Import impossible : fichier invalide.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // =======================
+  // Actions
+  // =======================
   function initDateTime(){
-    // Appelé au chargement et après submit/reset
-    _dtTouched = false;
-    _ctxTouched = false;
-    autoFillDateTime(true);
-    autoSuggestContext(false);
+    const dt = document.getElementById("dt");
+    const now = new Date();
+    const pad = n => String(n).padStart(2,"0");
+    const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    dt.value = val;
   }
 
   function refresh(){
@@ -981,8 +995,8 @@
     renderStats(stats);
     renderHistory(userData, stats);
     renderCharts(userData, stats);
-    renderGuidance(userData, stats);
     updateInputHints(stats);
+    renderBiofeedback();
   }
 
   window.deleteRow = function(id){
@@ -1012,25 +1026,10 @@
   window.addEventListener("DOMContentLoaded", () => {
     initDateTime();
     refresh();
-    // Quand tu reviens dans l'app (Android/Chrome), on rafraîchit l'heure proposée
-    // sans écraser si tu avais déjà modifié à la main.
-    const onReturn = () => { autoFillDateTime(false); autoSuggestContext(false); };
-    window.addEventListener("focus", onReturn, {passive:true});
-    window.addEventListener("pageshow", onReturn, {passive:true});
-    document.addEventListener("visibilitychange", ()=>{
-      if(!document.hidden) onReturn();
-    }, {passive:true});
     window.addEventListener("resize", ()=> refresh(), {passive:true});
-
-    const dtInput = document.getElementById("dt");
-    if(dtInput){
-      dtInput.addEventListener("input", ()=>{ _dtTouched = true; });
-      dtInput.addEventListener("change", ()=>{ _dtTouched = true; });
-    }
 
     const ctxSel = document.getElementById("ctx");
     ctxSel.addEventListener("change", ()=>{
-      _ctxTouched = true;
       const allData = getAllDataForStats();
       const stats = statsByContext(allData);
       updateInputHints(stats);
